@@ -29,6 +29,11 @@ export default function ConPercepcion() {
   const pt2 = bi2 + igv2;
   const diferencia = pt2 - pt1;
 
+  const tasaRetencion = 0.03;
+  const precioConRetencion = pt2 / (1 - tasaRetencion);
+  const retencion = precioConRetencion * tasaRetencion;
+  const netoRecibido = precioConRetencion - retencion;
+
   const format = (num: number) => `S/ ${num.toFixed(6)}`;
 
   const limpiar = () => {
@@ -92,6 +97,22 @@ export default function ConPercepcion() {
             <Result label="P.T." value={format(pt2)} />
             <Result label="DIFERENCIA" value={format(diferencia)} highlight />
           </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>CLIENTE CON RETENCIÓN 3%</Text>
+            <Text style={styles.cardDescription}>
+              Precio por galón para conservar la misma ganancia después de la retención.
+            </Text>
+
+            <Result label="PRECIO NORMAL POR GALÓN" value={format(pt2)} />
+            <Result
+              label="PRECIO DE VENTA POR GALÓN"
+              value={format(precioConRetencion)}
+              highlight
+            />
+            <Result label="RETENCIÓN 3%" value={format(retencion)} />
+            <Result label="NETO RECIBIDO" value={format(netoRecibido)} />
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -153,6 +174,7 @@ const styles = StyleSheet.create({
     borderColor: "#3A3A3A",
   },
   cardTitle: { color: "#fff", fontSize: 16, fontWeight: "bold", marginBottom: 12 },
+  cardDescription: { color: "#aaa", fontSize: 12, lineHeight: 18, marginBottom: 12 },
   field: { marginBottom: 10 },
   label: { color: "#aaa", fontSize: 11, marginBottom: 4, textTransform: "uppercase" },
   input: {
