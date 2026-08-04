@@ -154,88 +154,90 @@ export default function ListaPrecios() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.eyebrow}>COMERCIAL</Text>
-            <Text style={styles.headerTitle}>LISTA DE PRECIOS</Text>
-          </View>
-          <Image
-            source={LOGO_SOURCE}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </View>
-
-        <View style={styles.modeCard}>
-          <Text style={styles.sectionTitle}>TIPO DE CÁLCULO</Text>
-          <View style={styles.segmented}>
-            <ModeButton label="CON PERCEPCIÓN" active={modo === "con"} onPress={() => setModo("con")} />
-            <ModeButton label="SIN PERCEPCIÓN" active={modo === "sin"} onPress={() => setModo("sin")} />
-          </View>
-          <Text style={styles.helper}>
-            La utilidad se ingresa antes del IGV, igual que en los simuladores individuales.
-          </Text>
-        </View>
-
-        <PriceEditor
-          title="1. PRECIOS DE COMPRA"
-          subtitle="Ingresa el precio del proveedor por galón."
-          values={compras}
-          onChange={(key, value) => updateCell(setCompras, key, value)}
-        />
-
-        <PriceEditor
-          title="2. UTILIDAD"
-          subtitle="Ingresa la utilidad antes del IGV para cada producto."
-          values={utilidades}
-          onChange={(key, value) => updateCell(setUtilidades, key, value)}
-        />
-
-        <View style={styles.messageCard}>
-          <Text style={styles.sectionTitle}>3. MENSAJE PARA EL CLIENTE</Text>
-          <TextInput
-            style={styles.noteEditor}
-            value={nota}
-            onChangeText={setNota}
-            placeholder="Mensaje opcional"
-            placeholderTextColor="#777"
-          />
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator
-          contentContainerStyle={styles.previewScrollContent}
-        >
-          <View ref={previewRef} collapsable={false} style={styles.previewCard}>
-            <View style={styles.previewHeader}>
-              <Text style={styles.previewTitle}>Lista de precios vigentes:</Text>
-              <Text style={styles.previewDate}>{fechaActual()}</Text>
-              <Image
-                source={LOGO_SOURCE}
-                style={styles.previewLogo}
-                resizeMode="contain"
-              />
+        <View style={styles.pageContent}>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.eyebrow}>COMERCIAL</Text>
+              <Text style={styles.headerTitle}>LISTA DE PRECIOS</Text>
             </View>
+            <Image
+              source={LOGO_SOURCE}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
 
-            <PriceTable plantas={plantasConPrecios} values={ventas} />
-
-            <Text style={styles.clientNote}>
-              {nota || "Precios vigentes sujetos a disponibilidad."}
+          <View style={styles.modeCard}>
+            <Text style={styles.sectionTitle}>TIPO DE CÁLCULO</Text>
+            <View style={styles.segmented}>
+              <ModeButton label="CON PERCEPCIÓN" active={modo === "con"} onPress={() => setModo("con")} />
+              <ModeButton label="SIN PERCEPCIÓN" active={modo === "sin"} onPress={() => setModo("sin")} />
+            </View>
+            <Text style={styles.helperLast}>
+              La utilidad se ingresa antes del IGV, igual que en los simuladores individuales.
             </Text>
           </View>
-        </ScrollView>
 
-        <TouchableOpacity style={styles.exportButton} onPress={copiarImagen}>
-          <Ionicons name={copiado ? "checkmark-circle" : "copy-outline"} size={22} color="#fff" />
-          <Text style={styles.exportText}>
-            {copiado ? "IMAGEN COPIADA" : "COPIAR COMO IMAGEN"}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.clearButton} onPress={limpiar}>
-          <Ionicons name="trash-outline" size={20} color="#fff" />
-          <Text style={styles.clearText}>LIMPIAR TABLA</Text>
-        </TouchableOpacity>
+          <PriceEditor
+            title="1. PRECIOS DE COMPRA"
+            subtitle="Ingresa el precio del proveedor por galón."
+            values={compras}
+            onChange={(key, value) => updateCell(setCompras, key, value)}
+          />
+
+          <PriceEditor
+            title="2. UTILIDAD"
+            subtitle="Ingresa la utilidad antes del IGV para cada producto."
+            values={utilidades}
+            onChange={(key, value) => updateCell(setUtilidades, key, value)}
+          />
+
+          <View style={styles.messageCard}>
+            <Text style={styles.sectionTitle}>3. MENSAJE PARA EL CLIENTE</Text>
+            <TextInput
+              style={styles.noteEditor}
+              value={nota}
+              onChangeText={setNota}
+              placeholder="Mensaje opcional"
+              placeholderTextColor="#777"
+            />
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator
+            contentContainerStyle={styles.previewScrollContent}
+          >
+            <View ref={previewRef} collapsable={false} style={styles.previewCard}>
+              <View style={styles.previewHeader}>
+                <Text style={styles.previewTitle}>Lista de precios vigentes:</Text>
+                <Text style={styles.previewDate}>{fechaActual()}</Text>
+                <Image
+                  source={LOGO_SOURCE}
+                  style={styles.previewLogo}
+                  resizeMode="contain"
+                />
+              </View>
+
+              <PriceTable plantas={plantasConPrecios} values={ventas} />
+
+              <Text style={styles.clientNote}>
+                {nota || "Precios vigentes sujetos a disponibilidad."}
+              </Text>
+            </View>
+          </ScrollView>
+
+          <TouchableOpacity style={styles.exportButton} onPress={copiarImagen}>
+            <Ionicons name={copiado ? "checkmark-circle" : "copy-outline"} size={22} color="#fff" />
+            <Text style={styles.exportText}>
+              {copiado ? "IMAGEN COPIADA" : "COPIAR COMO IMAGEN"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.clearButton} onPress={limpiar}>
+            <Ionicons name="trash-outline" size={20} color="#fff" />
+            <Text style={styles.clearText}>LIMPIAR TABLA</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -264,23 +266,27 @@ function PriceEditor({
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>{title}</Text>
       <Text style={styles.helper}>{subtitle}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator>
-        <View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator
+        contentContainerStyle={styles.tableScrollContent}
+      >
+        <View style={styles.editorTable}>
           <View style={styles.tableRow}>
-            <Text style={[styles.tableHeader, styles.plantCell]}>PLANTA</Text>
+            <Text style={[styles.tableHeader, styles.editorPlantCell]}>PLANTA</Text>
             {PRODUCTOS.map((producto) => (
-              <Text key={producto} style={[styles.tableHeader, styles.valueCell]}>{producto}</Text>
+              <Text key={producto} style={[styles.tableHeader, styles.editorValueCell]}>{producto}</Text>
             ))}
           </View>
-          {PLANTAS.map((planta) => (
-            <View key={planta} style={styles.tableRow}>
-              <Text style={[styles.plantName, styles.plantCell]}>{planta}</Text>
+          {PLANTAS.map((planta, index) => (
+            <View key={planta} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlternate]}>
+              <Text style={[styles.plantName, styles.editorPlantCell]}>{planta}</Text>
               {PRODUCTOS.map((producto) => {
                 const key = keyFor(planta, producto);
                 return (
                   <TextInput
                     key={key}
-                    style={[styles.cellInput, styles.valueCell]}
+                    style={[styles.cellInput, styles.editorValueCell]}
                     value={values[key] ?? ""}
                     onChangeText={(value) => onChange(key, value)}
                     keyboardType="decimal-pad"
@@ -307,18 +313,18 @@ function PriceTable({
   return (
     <View>
       <View style={styles.outputRow}>
-        <Text style={[styles.outputHeader, styles.plantCell]}>PLANTA</Text>
+        <Text style={[styles.outputHeader, styles.outputPlantCell]}>PLANTA</Text>
         {PRODUCTOS.map((producto) => (
-          <Text key={producto} style={[styles.outputHeader, styles.valueCell]}>{producto}</Text>
+          <Text key={producto} style={[styles.outputHeader, styles.outputValueCell]}>{producto}</Text>
         ))}
       </View>
       {plantas.map((planta) => (
         <View key={planta} style={styles.outputRow}>
-          <Text style={[styles.outputPlant, styles.plantCell]}>{planta}</Text>
+          <Text style={[styles.outputPlant, styles.outputPlantCell]}>{planta}</Text>
           {PRODUCTOS.map((producto) => {
             const value = values[keyFor(planta, producto)];
             return (
-              <Text key={producto} style={[styles.outputValue, styles.valueCell]}>
+              <Text key={producto} style={[styles.outputValue, styles.outputValueCell]}>
                 {value ? value.toFixed(4) : ""}
               </Text>
             );
@@ -330,42 +336,49 @@ function PriceTable({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#111" },
-  scroll: { padding: 16, paddingBottom: 110, gap: 14 },
+  container: { flex: 1, backgroundColor: "#0f1110" },
+  scroll: { padding: 18, paddingBottom: 110 },
+  pageContent: { width: "100%", maxWidth: 1500, alignSelf: "center", gap: 16 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   eyebrow: { color: "#1D9E75", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
   headerTitle: { color: "#fff", fontSize: 24, fontWeight: "800" },
   logo: { width: 92, height: 54 },
-  modeCard: { backgroundColor: "#242424", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#343434" },
-  card: { backgroundColor: "#242424", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#343434" },
-  messageCard: { backgroundColor: "#242424", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#343434" },
+  modeCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
+  card: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
+  messageCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   sectionTitle: { color: "#fff", fontSize: 15, fontWeight: "800", marginBottom: 5 },
   helper: { color: "#aaa", fontSize: 12, lineHeight: 18, marginBottom: 12 },
+  helperLast: { color: "#aaa", fontSize: 12, lineHeight: 18, marginTop: 9 },
   segmented: { flexDirection: "row", backgroundColor: "#161616", borderRadius: 9, padding: 4, gap: 4 },
   modeButton: { flex: 1, paddingVertical: 11, borderRadius: 7, alignItems: "center" },
   modeButtonActive: { backgroundColor: "#1D9E75" },
   modeText: { color: "#8f8f8f", fontSize: 11, fontWeight: "800" },
   modeTextActive: { color: "#fff" },
   tableRow: { flexDirection: "row" },
-  plantCell: { width: 140 },
-  valueCell: { width: 190 },
-  tableHeader: { backgroundColor: "#080808", color: "#fff", borderWidth: 0.5, borderColor: "#4a4a4a", padding: 9, textAlign: "center", fontSize: 11, fontWeight: "800" },
-  plantName: { backgroundColor: "#353535", color: "#fff", borderWidth: 0.5, borderColor: "#4a4a4a", padding: 12, fontSize: 12 },
-  cellInput: { backgroundColor: "#171717", color: "#fff", borderWidth: 0.5, borderColor: "#4a4a4a", paddingHorizontal: 10, paddingVertical: 9, textAlign: "center", fontSize: 13 },
+  tableScrollContent: { flexGrow: 1, minWidth: 850 },
+  editorTable: { flex: 1, borderRadius: 10, overflow: "hidden", borderWidth: 1, borderColor: "#4a4f4c" },
+  editorPlantCell: { flex: 0.78, minWidth: 130 },
+  editorValueCell: { flex: 1, minWidth: 180 },
+  tableRowAlternate: { backgroundColor: "#1b1e1c" },
+  tableHeader: { backgroundColor: "#090a09", color: "#fff", borderWidth: 0.5, borderColor: "#4a4f4c", paddingVertical: 12, paddingHorizontal: 9, textAlign: "center", fontSize: 11, fontWeight: "800" },
+  plantName: { backgroundColor: "#343835", color: "#fff", borderWidth: 0.5, borderColor: "#4a4f4c", paddingHorizontal: 12, paddingVertical: 14, fontSize: 12, fontWeight: "700" },
+  cellInput: { backgroundColor: "transparent", color: "#fff", borderWidth: 0.5, borderColor: "#4a4f4c", paddingHorizontal: 10, paddingVertical: 11, textAlign: "center", fontSize: 13 },
   previewScrollContent: { minWidth: "100%", justifyContent: "center" },
   previewCard: { width: 948, backgroundColor: "#f8f8f8", borderRadius: 10, borderWidth: 1, borderColor: "#d5d5d5", padding: 24, gap: 20 },
   previewHeader: { height: 78, flexDirection: "row", alignItems: "center" },
   previewTitle: { flex: 1, color: "#111", fontSize: 20, fontWeight: "800" },
   previewDate: { width: 180, color: "#111", fontSize: 20, textAlign: "center" },
   previewLogo: { width: 120, height: 78 },
+  outputPlantCell: { width: 140 },
+  outputValueCell: { width: 190 },
   outputRow: { flexDirection: "row" },
   outputHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 12, fontWeight: "800" },
   outputPlant: { backgroundColor: "#bbb7b7", color: "#111", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 14 },
   outputValue: { backgroundColor: "#fff", color: "#111", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 15 },
   noteEditor: { minHeight: 44, borderRadius: 8, backgroundColor: "#171717", color: "#fff", borderWidth: 1, borderColor: "#4a4a4a", paddingHorizontal: 12, fontWeight: "700" },
   clientNote: { minHeight: 34, color: "#111", paddingTop: 6, fontWeight: "700", fontSize: 15 },
-  exportButton: { height: 52, backgroundColor: "#1D9E75", borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 },
+  exportButton: { height: 52, backgroundColor: "#1D9E75", borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 },
   exportText: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  clearButton: { height: 48, backgroundColor: "#b4232c", borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  clearButton: { height: 48, backgroundColor: "#b4232c", borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   clearText: { color: "#fff", fontSize: 13, fontWeight: "800" },
 });
