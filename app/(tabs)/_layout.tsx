@@ -51,18 +51,16 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="comercial/realizar-pedido"
+        name="comercial/lista-precios"
         options={{
-          href: null,
+          title: "Lista de precios",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="grid" size={size} color={color} />
+          ),
+          href: "/comercial/lista-precios",
         }}
       />
 
-      <Tabs.Screen
-        name="comercial/historial-pedidos"
-        options={{
-          href: null,
-        }}
-      />
     </Tabs>
   );
 }
