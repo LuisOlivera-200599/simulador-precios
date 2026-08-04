@@ -83,6 +83,16 @@ export default function ListaPrecios() {
     return result;
   }, [compras, modo, utilidades]);
 
+  const plantasConPrecios = useMemo(
+    () =>
+      PLANTAS.filter((planta) =>
+        PRODUCTOS.some(
+          (producto) => numberFrom(compras[keyFor(planta, producto)] ?? "") > 0,
+        ),
+      ),
+    [compras],
+  );
+
   const updateCell = (
     setter: React.Dispatch<React.SetStateAction<Matriz>>,
     key: string,
@@ -113,13 +123,18 @@ export default function ListaPrecios() {
       return;
     }
 
+    if (plantasConPrecios.length === 0) {
+      window.alert("Ingresa al menos un precio de compra antes de copiar la imagen.");
+      return;
+    }
+
     try {
       const { toBlob } = await import("html-to-image");
       const element = previewRef.current as unknown as HTMLElement;
       const blob = await toBlob(element, {
         backgroundColor: "#f8f8f8",
         cacheBust: true,
-        pixelRatio: 2,
+        pixelRatio: 1.5,
       });
 
       if (!blob) throw new Error("No se pudo crear la imagen");
@@ -187,25 +202,29 @@ export default function ListaPrecios() {
           />
         </View>
 
-        <View ref={previewRef} collapsable={false} style={styles.previewCard}>
-          <View style={styles.previewHeader}>
-            <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator
+          contentContainerStyle={styles.previewScrollContent}
+        >
+          <View ref={previewRef} collapsable={false} style={styles.previewCard}>
+            <View style={styles.previewHeader}>
               <Text style={styles.previewTitle}>Lista de precios vigentes:</Text>
               <Text style={styles.previewDate}>{fechaActual()}</Text>
+              <Image
+                source={LOGO_SOURCE}
+                style={styles.previewLogo}
+                resizeMode="contain"
+              />
             </View>
-            <Image
-              source={LOGO_SOURCE}
-              style={styles.previewLogo}
-              resizeMode="contain"
-            />
+
+            <PriceTable plantas={plantasConPrecios} values={ventas} />
+
+            <Text style={styles.clientNote}>
+              {nota || "Precios vigentes sujetos a disponibilidad."}
+            </Text>
           </View>
-
-          <PriceTable values={ventas} />
-
-          <Text style={styles.clientNote}>
-            {nota || "Precios vigentes sujetos a disponibilidad."}
-          </Text>
-        </View>
+        </ScrollView>
 
         <TouchableOpacity style={styles.exportButton} onPress={copiarImagen}>
           <Ionicons name={copiado ? "checkmark-circle" : "copy-outline"} size={22} color="#fff" />
@@ -278,31 +297,35 @@ function PriceEditor({
   );
 }
 
-function PriceTable({ values }: { values: Record<string, number> }) {
+function PriceTable({
+  plantas,
+  values,
+}: {
+  plantas: string[];
+  values: Record<string, number>;
+}) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator>
-      <View>
-        <View style={styles.outputRow}>
-          <Text style={[styles.outputHeader, styles.plantCell]}>PLANTA</Text>
-          {PRODUCTOS.map((producto) => (
-            <Text key={producto} style={[styles.outputHeader, styles.valueCell]}>{producto}</Text>
-          ))}
-        </View>
-        {PLANTAS.map((planta) => (
-          <View key={planta} style={styles.outputRow}>
-            <Text style={[styles.outputPlant, styles.plantCell]}>{planta}</Text>
-            {PRODUCTOS.map((producto) => {
-              const value = values[keyFor(planta, producto)];
-              return (
-                <Text key={producto} style={[styles.outputValue, styles.valueCell]}>
-                  {value ? value.toFixed(4) : ""}
-                </Text>
-              );
-            })}
-          </View>
+    <View>
+      <View style={styles.outputRow}>
+        <Text style={[styles.outputHeader, styles.plantCell]}>PLANTA</Text>
+        {PRODUCTOS.map((producto) => (
+          <Text key={producto} style={[styles.outputHeader, styles.valueCell]}>{producto}</Text>
         ))}
       </View>
-    </ScrollView>
+      {plantas.map((planta) => (
+        <View key={planta} style={styles.outputRow}>
+          <Text style={[styles.outputPlant, styles.plantCell]}>{planta}</Text>
+          {PRODUCTOS.map((producto) => {
+            const value = values[keyFor(planta, producto)];
+            return (
+              <Text key={producto} style={[styles.outputValue, styles.valueCell]}>
+                {value ? value.toFixed(4) : ""}
+              </Text>
+            );
+          })}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -329,17 +352,18 @@ const styles = StyleSheet.create({
   tableHeader: { backgroundColor: "#080808", color: "#fff", borderWidth: 0.5, borderColor: "#4a4a4a", padding: 9, textAlign: "center", fontSize: 11, fontWeight: "800" },
   plantName: { backgroundColor: "#353535", color: "#fff", borderWidth: 0.5, borderColor: "#4a4a4a", padding: 12, fontSize: 12 },
   cellInput: { backgroundColor: "#171717", color: "#fff", borderWidth: 0.5, borderColor: "#4a4a4a", paddingHorizontal: 10, paddingVertical: 9, textAlign: "center", fontSize: 13 },
-  previewCard: { backgroundColor: "#f8f8f8", borderRadius: 14, padding: 16, gap: 14 },
-  previewHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  previewTitle: { color: "#111", fontSize: 16, fontWeight: "800" },
-  previewDate: { color: "#111", fontSize: 17, marginTop: 4 },
-  previewLogo: { width: 100, height: 65 },
+  previewScrollContent: { minWidth: "100%", justifyContent: "center" },
+  previewCard: { width: 948, backgroundColor: "#f8f8f8", borderRadius: 10, borderWidth: 1, borderColor: "#d5d5d5", padding: 24, gap: 20 },
+  previewHeader: { height: 78, flexDirection: "row", alignItems: "center" },
+  previewTitle: { flex: 1, color: "#111", fontSize: 20, fontWeight: "800" },
+  previewDate: { width: 180, color: "#111", fontSize: 20, textAlign: "center" },
+  previewLogo: { width: 120, height: 78 },
   outputRow: { flexDirection: "row" },
-  outputHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#222", padding: 8, textAlign: "center", fontSize: 11, fontWeight: "800" },
-  outputPlant: { backgroundColor: "#bbb7b7", color: "#111", borderWidth: 0.5, borderColor: "#222", padding: 10, textAlign: "center", fontSize: 12 },
-  outputValue: { backgroundColor: "#fff", color: "#111", borderWidth: 0.5, borderColor: "#222", padding: 10, textAlign: "center", fontSize: 13 },
+  outputHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 12, fontWeight: "800" },
+  outputPlant: { backgroundColor: "#bbb7b7", color: "#111", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 14 },
+  outputValue: { backgroundColor: "#fff", color: "#111", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 15 },
   noteEditor: { minHeight: 44, borderRadius: 8, backgroundColor: "#171717", color: "#fff", borderWidth: 1, borderColor: "#4a4a4a", paddingHorizontal: 12, fontWeight: "700" },
-  clientNote: { minHeight: 32, color: "#111", paddingTop: 8, fontWeight: "700", fontSize: 14 },
+  clientNote: { minHeight: 34, color: "#111", paddingTop: 6, fontWeight: "700", fontSize: 15 },
   exportButton: { height: 52, backgroundColor: "#1D9E75", borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 },
   exportText: { color: "#fff", fontWeight: "800", fontSize: 14 },
   clearButton: { height: 48, backgroundColor: "#b4232c", borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
