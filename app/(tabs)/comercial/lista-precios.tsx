@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import React, { useEffect, useMemo, useState } from "react";
-import { LOGO_CRUMAR_DATA_URI } from "../../../constants/logo-crumar";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -38,21 +37,14 @@ function fechaActual() {
   return new Intl.DateTimeFormat("es-PE").format(new Date());
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
 export default function ListaPrecios() {
   const [modo, setModo] = useState<Modo>("con");
   const [compras, setCompras] = useState<Matriz>({});
   const [utilidades, setUtilidades] = useState<Matriz>({});
   const [nota, setNota] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+  const previewRef = useRef<View>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
@@ -115,70 +107,32 @@ export default function ListaPrecios() {
     ]);
   };
 
-  const crearHtml = () => {
-    const rows = PLANTAS.map((planta) => {
-      const cells = PRODUCTOS.map((producto) => {
-        const value = ventas[keyFor(planta, producto)];
-        return `<td>${value ? value.toFixed(4) : ""}</td>`;
-      }).join("");
-      return `<tr><th>${escapeHtml(planta)}</th>${cells}</tr>`;
-    }).join("");
-
-    return `<!doctype html>
-      <html><head><meta charset="utf-8"><title>Lista de precios CRUMAR</title>
-      <style>
-        @page { size: landscape; margin: 18mm; }
-        * { box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; color: #111; margin: 0; }
-        .sheet { border: 1px solid #222; padding: 34px 54px; min-height: 520px; }
-        .header { display: grid; grid-template-columns: 1fr auto 210px; align-items: center; gap: 28px; margin-bottom: 18px; }
-        .title { font-size: 25px; font-weight: 700; }
-        .date { font-size: 28px; }
-        .brand { width: 180px; height: 125px; object-fit: contain; justify-self: end; }
-        table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 21px; }
-        th, td { border: 1px solid #222; height: 39px; padding: 5px 9px; text-align: center; }
-        thead th { background: #050505; color: white; font-weight: 700; }
-        tbody th { background: #bbb7b7; font-weight: 400; }
-        .note { margin-top: 38px; font-size: 22px; font-weight: 700; }
-      </style></head>
-      <body><div class="sheet">
-        <div class="header">
-          <div class="title">Lista de precios vigentes:</div>
-          <div class="date">${fechaActual()}</div>
-          <img class="brand" src="${LOGO_CRUMAR_DATA_URI}" alt="CRUMAR">
-        </div>
-        <table><thead><tr><th>PLANTA</th>${PRODUCTOS.map((p) => `<th>${escapeHtml(p)}</th>`).join("")}</tr></thead>
-        <tbody>${rows}</tbody></table>
-        <div class="note">${escapeHtml(nota || "Precios vigentes sujetos a disponibilidad.")}</div>
-      </div></body></html>`;
-  };
-
-  const exportar = async () => {
-    const html = crearHtml();
-
-    if (Platform.OS === "web") {
-      const printWindow = window.open("", "_blank", "width=1100,height=760");
-      if (!printWindow) {
-        window.alert("Permite las ventanas emergentes para generar el documento.");
-        return;
-      }
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      window.setTimeout(() => printWindow.print(), 300);
+  const copiarImagen = async () => {
+    if (Platform.OS !== "web" || !previewRef.current) {
+      Alert.alert("Copiar imagen", "Esta función está disponible en la versión web.");
       return;
     }
 
-    const [Print, Sharing] = await Promise.all([
-      import("expo-print"),
-      import("expo-sharing"),
-    ]);
-    const { uri } = await Print.printToFileAsync({ html });
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri, {
-        mimeType: "application/pdf",
-        dialogTitle: "Compartir lista de precios",
+    try {
+      const { toBlob } = await import("html-to-image");
+      const element = previewRef.current as unknown as HTMLElement;
+      const blob = await toBlob(element, {
+        backgroundColor: "#f8f8f8",
+        cacheBust: true,
+        pixelRatio: 2,
       });
+
+      if (!blob) throw new Error("No se pudo crear la imagen");
+
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
+      setCopiado(true);
+      window.setTimeout(() => setCopiado(false), 2500);
+    } catch {
+      window.alert(
+        "No se pudo copiar la imagen. Revisa que Chrome permita el acceso al portapapeles.",
+      );
     }
   };
 
@@ -222,7 +176,18 @@ export default function ListaPrecios() {
           onChange={(key, value) => updateCell(setUtilidades, key, value)}
         />
 
-        <View style={styles.previewCard}>
+        <View style={styles.messageCard}>
+          <Text style={styles.sectionTitle}>3. MENSAJE PARA EL CLIENTE</Text>
+          <TextInput
+            style={styles.noteEditor}
+            value={nota}
+            onChangeText={setNota}
+            placeholder="Mensaje opcional"
+            placeholderTextColor="#777"
+          />
+        </View>
+
+        <View ref={previewRef} collapsable={false} style={styles.previewCard}>
           <View style={styles.previewHeader}>
             <View>
               <Text style={styles.previewTitle}>Lista de precios vigentes:</Text>
@@ -237,21 +202,20 @@ export default function ListaPrecios() {
 
           <PriceTable values={ventas} />
 
-          <TextInput
-            style={styles.noteInput}
-            value={nota}
-            onChangeText={setNota}
-            placeholder="Mensaje para el cliente (opcional)"
-            placeholderTextColor="#777"
-          />
+          <Text style={styles.clientNote}>
+            {nota || "Precios vigentes sujetos a disponibilidad."}
+          </Text>
         </View>
 
-        <TouchableOpacity style={styles.exportButton} onPress={exportar}>
-          <Ionicons name="share-outline" size={22} color="#fff" />
-          <Text style={styles.exportText}>GENERAR Y COMPARTIR</Text>
+        <TouchableOpacity style={styles.exportButton} onPress={copiarImagen}>
+          <Ionicons name={copiado ? "checkmark-circle" : "copy-outline"} size={22} color="#fff" />
+          <Text style={styles.exportText}>
+            {copiado ? "IMAGEN COPIADA" : "COPIAR COMO IMAGEN"}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.clearButton} onPress={limpiar}>
-          <Text style={styles.clearText}>Limpiar todos los datos</Text>
+          <Ionicons name="trash-outline" size={20} color="#fff" />
+          <Text style={styles.clearText}>LIMPIAR TABLA</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -351,6 +315,7 @@ const styles = StyleSheet.create({
   logo: { width: 92, height: 54 },
   modeCard: { backgroundColor: "#242424", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#343434" },
   card: { backgroundColor: "#242424", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#343434" },
+  messageCard: { backgroundColor: "#242424", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#343434" },
   sectionTitle: { color: "#fff", fontSize: 15, fontWeight: "800", marginBottom: 5 },
   helper: { color: "#aaa", fontSize: 12, lineHeight: 18, marginBottom: 12 },
   segmented: { flexDirection: "row", backgroundColor: "#161616", borderRadius: 9, padding: 4, gap: 4 },
@@ -373,9 +338,10 @@ const styles = StyleSheet.create({
   outputHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#222", padding: 8, textAlign: "center", fontSize: 11, fontWeight: "800" },
   outputPlant: { backgroundColor: "#bbb7b7", color: "#111", borderWidth: 0.5, borderColor: "#222", padding: 10, textAlign: "center", fontSize: 12 },
   outputValue: { backgroundColor: "#fff", color: "#111", borderWidth: 0.5, borderColor: "#222", padding: 10, textAlign: "center", fontSize: 13 },
-  noteInput: { minHeight: 46, color: "#111", borderBottomWidth: 1, borderBottomColor: "#bbb", paddingVertical: 8, fontWeight: "700" },
+  noteEditor: { minHeight: 44, borderRadius: 8, backgroundColor: "#171717", color: "#fff", borderWidth: 1, borderColor: "#4a4a4a", paddingHorizontal: 12, fontWeight: "700" },
+  clientNote: { minHeight: 32, color: "#111", paddingTop: 8, fontWeight: "700", fontSize: 14 },
   exportButton: { height: 52, backgroundColor: "#1D9E75", borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 },
   exportText: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  clearButton: { height: 44, alignItems: "center", justifyContent: "center" },
-  clearText: { color: "#e45d5d", fontSize: 13, fontWeight: "700" },
+  clearButton: { height: 48, backgroundColor: "#b4232c", borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  clearText: { color: "#fff", fontSize: 13, fontWeight: "800" },
 });
