@@ -21,8 +21,17 @@ const PLANTAS = ["VALERO", "CALLAO", "PAMPILLA", "CONCHÁN", "PISCO"];
 const PRODUCTOS = ["DB5 S50 UV", "DB5 S50", "REGULAR", "PREMIUM"];
 const STORAGE_KEY = "lista-precios-comercial-v1";
 const LOGO_SOURCE = require("../../../assets/images/Logo_Crumar.png");
+const PALETA_COLORES = [
+  { nombre: "Amarillo", valor: "#FFD54F" },
+  { nombre: "Verde", valor: "#81C784" },
+  { nombre: "Azul", valor: "#64B5F6" },
+  { nombre: "Naranja", valor: "#FFB74D" },
+  { nombre: "Rosado", valor: "#F48FB1" },
+  { nombre: "Lila", valor: "#B39DDB" },
+] as const;
 
 const keyFor = (planta: string, producto: string) => `${planta}::${producto}`;
+const plantKeyFor = (planta: string) => `${planta}::PLANTA`;
 const numberFrom = (value: string) => Number.parseFloat(value.replace(",", ".")) || 0;
 
 function calcularVenta(compra: number, utilidad: number, modo: Modo) {
@@ -41,6 +50,10 @@ export default function ListaPrecios() {
   const [modo, setModo] = useState<Modo>("con");
   const [compras, setCompras] = useState<Matriz>({});
   const [utilidades, setUtilidades] = useState<Matriz>({});
+  const [colores, setColores] = useState<Matriz>({});
+  const [colorPincel, setColorPincel] = useState<string | null>(
+    PALETA_COLORES[0].valor,
+  );
   const [nota, setNota] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [copiado, setCopiado] = useState(false);
@@ -54,6 +67,7 @@ export default function ListaPrecios() {
         setModo(data.modo ?? "con");
         setCompras(data.compras ?? {});
         setUtilidades(data.utilidades ?? {});
+        setColores(data.colores ?? {});
         setNota(data.nota ?? "");
       })
       .catch(() => undefined)
@@ -64,9 +78,9 @@ export default function ListaPrecios() {
     if (!loaded) return;
     AsyncStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ modo, compras, utilidades, nota }),
+      JSON.stringify({ modo, compras, utilidades, colores, nota }),
     ).catch(() => undefined);
-  }, [compras, loaded, modo, nota, utilidades]);
+  }, [colores, compras, loaded, modo, nota, utilidades]);
 
   const ventas = useMemo(() => {
     const result: Record<string, number> = {};
@@ -99,10 +113,21 @@ export default function ListaPrecios() {
     value: string,
   ) => setter((current) => ({ ...current, [key]: value }));
 
+  const pintarCelda = (key: string) => {
+    setColores((current) => {
+      if (colorPincel) return { ...current, [key]: colorPincel };
+
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
+
   const limpiar = () => {
     const clear = () => {
       setCompras({});
       setUtilidades({});
+      setColores({});
       setNota("");
     };
 
@@ -203,6 +228,11 @@ export default function ListaPrecios() {
             />
           </View>
 
+          <ColorPalette
+            selectedColor={colorPincel}
+            onSelectColor={setColorPincel}
+          />
+
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator
@@ -219,7 +249,12 @@ export default function ListaPrecios() {
                 />
               </View>
 
-              <PriceTable plantas={plantasConPrecios} values={ventas} />
+              <PriceTable
+                plantas={plantasConPrecios}
+                values={ventas}
+                colors={colores}
+                onPaint={pintarCelda}
+              />
 
               <Text style={styles.clientNote}>
                 {nota || "Precios vigentes sujetos a disponibilidad."}
@@ -240,6 +275,58 @@ export default function ListaPrecios() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ColorPalette({
+  selectedColor,
+  onSelectColor,
+}: {
+  selectedColor: string | null;
+  onSelectColor: (color: string | null) => void;
+}) {
+  return (
+    <View style={styles.paletteCard}>
+      <Text style={styles.sectionTitle}>4. COLORES DE LA TABLA FINAL</Text>
+      <Text style={styles.helper}>
+        Elige un color y luego pulsa cada recuadro que quieras pintar.
+      </Text>
+      <View style={styles.paletteRow}>
+        {PALETA_COLORES.map((color) => (
+          <TouchableOpacity
+            key={color.valor}
+            accessibilityLabel={`Seleccionar color ${color.nombre}`}
+            accessibilityRole="button"
+            accessibilityState={{ selected: selectedColor === color.valor }}
+            activeOpacity={0.75}
+            onPress={() => onSelectColor(color.valor)}
+            style={[
+              styles.colorSwatch,
+              { backgroundColor: color.valor },
+              selectedColor === color.valor && styles.colorSwatchActive,
+            ]}
+          >
+            {selectedColor === color.valor && (
+              <Ionicons name="checkmark" size={20} color="#111" />
+            )}
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          accessibilityLabel="Borrar color de los recuadros"
+          accessibilityRole="button"
+          accessibilityState={{ selected: selectedColor === null }}
+          activeOpacity={0.75}
+          onPress={() => onSelectColor(null)}
+          style={[
+            styles.eraseColorButton,
+            selectedColor === null && styles.eraseColorButtonActive,
+          ]}
+        >
+          <Ionicons name="close-circle-outline" size={18} color="#fff" />
+          <Text style={styles.eraseColorText}>BORRAR COLOR</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
@@ -306,9 +393,13 @@ function PriceEditor({
 function PriceTable({
   plantas,
   values,
+  colors,
+  onPaint,
 }: {
   plantas: string[];
   values: Record<string, number>;
+  colors: Matriz;
+  onPaint: (key: string) => void;
 }) {
   return (
     <View>
@@ -318,19 +409,52 @@ function PriceTable({
           <Text key={producto} style={[styles.outputHeader, styles.outputValueCell]}>{producto}</Text>
         ))}
       </View>
-      {plantas.map((planta) => (
-        <View key={planta} style={styles.outputRow}>
-          <Text style={[styles.outputPlant, styles.outputPlantCell]}>{planta}</Text>
-          {PRODUCTOS.map((producto) => {
-            const value = values[keyFor(planta, producto)];
-            return (
-              <Text key={producto} style={[styles.outputValue, styles.outputValueCell]}>
-                {value ? value.toFixed(4) : ""}
-              </Text>
-            );
-          })}
-        </View>
-      ))}
+      {plantas.map((planta) => {
+        const plantKey = plantKeyFor(planta);
+
+        return (
+          <View key={planta} style={styles.outputRow}>
+            <TouchableOpacity
+              accessibilityLabel={`Pintar recuadro ${planta}`}
+              accessibilityRole="button"
+              activeOpacity={0.75}
+              onPress={() => onPaint(plantKey)}
+              style={[
+                styles.outputCell,
+                styles.outputPlant,
+                styles.outputPlantCell,
+                colors[plantKey] ? { backgroundColor: colors[plantKey] } : null,
+              ]}
+            >
+              <Text style={styles.outputPlantText}>{planta}</Text>
+            </TouchableOpacity>
+            {PRODUCTOS.map((producto) => {
+              const key = keyFor(planta, producto);
+              const value = values[key];
+
+              return (
+                <TouchableOpacity
+                  key={producto}
+                  accessibilityLabel={`Pintar recuadro ${planta}, ${producto}`}
+                  accessibilityRole="button"
+                  activeOpacity={0.75}
+                  onPress={() => onPaint(key)}
+                  style={[
+                    styles.outputCell,
+                    styles.outputValue,
+                    styles.outputValueCell,
+                    colors[key] ? { backgroundColor: colors[key] } : null,
+                  ]}
+                >
+                  <Text style={styles.outputValueText}>
+                    {value ? value.toFixed(4) : ""}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -346,6 +470,13 @@ const styles = StyleSheet.create({
   modeCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   card: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   messageCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
+  paletteCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
+  paletteRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12 },
+  colorSwatch: { width: 48, height: 48, borderRadius: 12, borderWidth: 2, borderColor: "#555", alignItems: "center", justifyContent: "center" },
+  colorSwatchActive: { borderColor: "#fff", borderWidth: 4 },
+  eraseColorButton: { minHeight: 48, paddingHorizontal: 16, borderRadius: 10, borderWidth: 2, borderColor: "#555", backgroundColor: "#171717", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  eraseColorButtonActive: { borderColor: "#fff" },
+  eraseColorText: { color: "#fff", fontSize: 11, fontWeight: "800" },
   sectionTitle: { color: "#fff", fontSize: 15, fontWeight: "800", marginBottom: 5 },
   helper: { color: "#aaa", fontSize: 12, lineHeight: 18, marginBottom: 12 },
   helperLast: { color: "#aaa", fontSize: 12, lineHeight: 18, marginTop: 9 },
@@ -373,8 +504,11 @@ const styles = StyleSheet.create({
   outputValueCell: { width: 190 },
   outputRow: { flexDirection: "row" },
   outputHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 12, fontWeight: "800" },
-  outputPlant: { backgroundColor: "#bbb7b7", color: "#111", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 14 },
-  outputValue: { backgroundColor: "#fff", color: "#111", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 15 },
+  outputCell: { minHeight: 44, borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
+  outputPlant: { backgroundColor: "#bbb7b7" },
+  outputValue: { backgroundColor: "#fff" },
+  outputPlantText: { color: "#111", textAlign: "center", fontSize: 14 },
+  outputValueText: { color: "#111", textAlign: "center", fontSize: 15 },
   noteEditor: { minHeight: 44, borderRadius: 8, backgroundColor: "#171717", color: "#fff", borderWidth: 1, borderColor: "#4a4a4a", paddingHorizontal: 12, fontWeight: "700" },
   clientNote: { minHeight: 34, color: "#111", paddingTop: 6, fontWeight: "700", fontSize: 15 },
   exportButton: { height: 52, backgroundColor: "#1D9E75", borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 },
