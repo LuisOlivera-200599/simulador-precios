@@ -14,8 +14,10 @@ import {
   View,
 } from "react-native";
 
-type Modo = "con" | "sin";
+type TipoPercepcion = "con" | "sin";
+type Modo = TipoPercepcion | "mixto";
 type Matriz = Record<string, string>;
+type TiposPorCelda = Record<string, TipoPercepcion>;
 
 const PLANTAS = ["VALERO", "CALLAO", "PAMPILLA", "CONCHÁN", "PISCO"];
 const PRODUCTOS = ["DB5 S50 UV", "DB5 S50", "REGULAR", "PREMIUM"];
@@ -34,10 +36,10 @@ const keyFor = (planta: string, producto: string) => `${planta}::${producto}`;
 const plantKeyFor = (planta: string) => `${planta}::PLANTA`;
 const numberFrom = (value: string) => Number.parseFloat(value.replace(",", ".")) || 0;
 
-function calcularVenta(compra: number, utilidad: number, modo: Modo) {
+function calcularVenta(compra: number, utilidad: number, tipo: TipoPercepcion) {
   if (!compra) return 0;
 
-  const precioTotal = modo === "con" ? compra - compra / 1.01 / 100 : compra;
+  const precioTotal = tipo === "con" ? compra - compra / 1.01 / 100 : compra;
   const baseImponible = precioTotal / 1.18;
   return (baseImponible + utilidad) * 1.18;
 }
@@ -54,6 +56,7 @@ export default function ListaPrecios() {
   const [colorPincel, setColorPincel] = useState<string | null>(
     PALETA_COLORES[0].valor,
   );
+  const [tiposPorCelda, setTiposPorCelda] = useState<TiposPorCelda>({});
   const [nota, setNota] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [copiado, setCopiado] = useState(false);
@@ -68,6 +71,7 @@ export default function ListaPrecios() {
         setCompras(data.compras ?? {});
         setUtilidades(data.utilidades ?? {});
         setColores(data.colores ?? {});
+        setTiposPorCelda(data.tiposPorCelda ?? {});
         setNota(data.nota ?? "");
       })
       .catch(() => undefined)
@@ -78,9 +82,9 @@ export default function ListaPrecios() {
     if (!loaded) return;
     AsyncStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ modo, compras, utilidades, colores, nota }),
+      JSON.stringify({ modo, compras, utilidades, colores, tiposPorCelda, nota }),
     ).catch(() => undefined);
-  }, [colores, compras, loaded, modo, nota, utilidades]);
+  }, [colores, compras, loaded, modo, nota, tiposPorCelda, utilidades]);
 
   const ventas = useMemo(() => {
     const result: Record<string, number> = {};
@@ -90,12 +94,12 @@ export default function ListaPrecios() {
         result[key] = calcularVenta(
           numberFrom(compras[key] ?? ""),
           numberFrom(utilidades[key] ?? ""),
-          modo,
+          modo === "mixto" ? (tiposPorCelda[key] ?? "con") : modo,
         );
       });
     });
     return result;
-  }, [compras, modo, utilidades]);
+  }, [compras, modo, tiposPorCelda, utilidades]);
 
   const plantasConPrecios = useMemo(
     () =>
@@ -123,11 +127,28 @@ export default function ListaPrecios() {
     });
   };
 
+  const seleccionarModo = (nuevoModo: Modo) => {
+    if (nuevoModo === "mixto" && modo !== "mixto") {
+      setTiposPorCelda((current) => {
+        const next = { ...current };
+        PLANTAS.forEach((planta) => {
+          PRODUCTOS.forEach((producto) => {
+            const key = keyFor(planta, producto);
+            next[key] ??= modo;
+          });
+        });
+        return next;
+      });
+    }
+    setModo(nuevoModo);
+  };
+
   const limpiar = () => {
     const clear = () => {
       setCompras({});
       setUtilidades({});
       setColores({});
+      setTiposPorCelda({});
       setNota("");
     };
 
@@ -195,11 +216,14 @@ export default function ListaPrecios() {
           <View style={styles.modeCard}>
             <Text style={styles.sectionTitle}>TIPO DE CÁLCULO</Text>
             <View style={styles.segmented}>
-              <ModeButton label="CON PERCEPCIÓN" active={modo === "con"} onPress={() => setModo("con")} />
-              <ModeButton label="SIN PERCEPCIÓN" active={modo === "sin"} onPress={() => setModo("sin")} />
+              <ModeButton label="CON PERCEPCIÓN" active={modo === "con"} onPress={() => seleccionarModo("con")} />
+              <ModeButton label="SIN PERCEPCIÓN" active={modo === "sin"} onPress={() => seleccionarModo("sin")} />
+              <ModeButton label="MIXTO" active={modo === "mixto"} onPress={() => seleccionarModo("mixto")} />
             </View>
             <Text style={styles.helperLast}>
-              La utilidad se ingresa antes del IGV, igual que en los simuladores individuales.
+              {modo === "mixto"
+                ? "Elige CON o SIN debajo de cada precio de compra. La utilidad se mantiene antes del IGV."
+                : "La utilidad se ingresa antes del IGV, igual que en los simuladores individuales."}
             </Text>
           </View>
 
@@ -208,6 +232,11 @@ export default function ListaPrecios() {
             subtitle="Ingresa el precio del proveedor por galón."
             values={compras}
             onChange={(key, value) => updateCell(setCompras, key, value)}
+            showModeControls={modo === "mixto"}
+            cellModes={tiposPorCelda}
+            onModeChange={(key, value) =>
+              setTiposPorCelda((current) => ({ ...current, [key]: value }))
+            }
           />
 
           <PriceEditor
@@ -332,7 +361,12 @@ function ColorPalette({
 
 function ModeButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity style={[styles.modeButton, active && styles.modeButtonActive]} onPress={onPress}>
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={[styles.modeButton, active && styles.modeButtonActive]}
+      onPress={onPress}
+    >
       <Text style={[styles.modeText, active && styles.modeTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -343,11 +377,17 @@ function PriceEditor({
   subtitle,
   values,
   onChange,
+  showModeControls = false,
+  cellModes,
+  onModeChange,
 }: {
   title: string;
   subtitle: string;
   values: Matriz;
   onChange: (key: string, value: string) => void;
+  showModeControls?: boolean;
+  cellModes?: TiposPorCelda;
+  onModeChange?: (key: string, value: TipoPercepcion) => void;
 }) {
   return (
     <View style={styles.card}>
@@ -367,10 +407,37 @@ function PriceEditor({
           </View>
           {PLANTAS.map((planta, index) => (
             <View key={planta} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlternate]}>
-              <Text style={[styles.plantName, styles.editorPlantCell]}>{planta}</Text>
+              <View style={[styles.plantName, styles.editorPlantCell]}>
+                <Text style={styles.plantNameText}>{planta}</Text>
+              </View>
               {PRODUCTOS.map((producto) => {
                 const key = keyFor(planta, producto);
-                return (
+                return showModeControls && cellModes && onModeChange ? (
+                  <View key={key} style={[styles.mixedCell, styles.editorValueCell]}>
+                    <TextInput
+                      style={styles.mixedCellInput}
+                      value={values[key] ?? ""}
+                      onChangeText={(value) => onChange(key, value)}
+                      keyboardType="decimal-pad"
+                      placeholder="0.0000"
+                      placeholderTextColor="#5d5d5d"
+                    />
+                    <View style={styles.cellModeSwitch}>
+                      <CellModeButton
+                        label="CON"
+                        accessibilityLabel={`Con percepción: ${planta} ${producto}`}
+                        active={(cellModes[key] ?? "con") === "con"}
+                        onPress={() => onModeChange(key, "con")}
+                      />
+                      <CellModeButton
+                        label="SIN"
+                        accessibilityLabel={`Sin percepción: ${planta} ${producto}`}
+                        active={(cellModes[key] ?? "con") === "sin"}
+                        onPress={() => onModeChange(key, "sin")}
+                      />
+                    </View>
+                  </View>
+                ) : (
                   <TextInput
                     key={key}
                     style={[styles.cellInput, styles.editorValueCell]}
@@ -387,6 +454,32 @@ function PriceEditor({
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+function CellModeButton({
+  label,
+  accessibilityLabel,
+  active,
+  onPress,
+}: {
+  label: string;
+  accessibilityLabel: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={[styles.cellModeButton, active && styles.cellModeButtonActive]}
+      onPress={onPress}
+    >
+      <Text style={[styles.cellModeText, active && styles.cellModeTextActive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -483,7 +576,7 @@ const styles = StyleSheet.create({
   segmented: { flexDirection: "row", backgroundColor: "#161616", borderRadius: 9, padding: 4, gap: 4 },
   modeButton: { flex: 1, paddingVertical: 11, borderRadius: 7, alignItems: "center" },
   modeButtonActive: { backgroundColor: "#1D9E75" },
-  modeText: { color: "#8f8f8f", fontSize: 11, fontWeight: "800" },
+  modeText: { color: "#8f8f8f", fontSize: 10, fontWeight: "800", textAlign: "center" },
   modeTextActive: { color: "#fff" },
   tableRow: { flexDirection: "row" },
   tableScrollContent: { flexGrow: 1, minWidth: 850 },
@@ -492,8 +585,16 @@ const styles = StyleSheet.create({
   editorValueCell: { flex: 1, minWidth: 180 },
   tableRowAlternate: { backgroundColor: "#1b1e1c" },
   tableHeader: { backgroundColor: "#090a09", color: "#fff", borderWidth: 0.5, borderColor: "#4a4f4c", paddingVertical: 12, paddingHorizontal: 9, textAlign: "center", fontSize: 11, fontWeight: "800" },
-  plantName: { backgroundColor: "#343835", color: "#fff", borderWidth: 0.5, borderColor: "#4a4f4c", paddingHorizontal: 12, paddingVertical: 14, fontSize: 12, fontWeight: "700" },
+  plantName: { backgroundColor: "#343835", borderWidth: 0.5, borderColor: "#4a4f4c", paddingHorizontal: 12, paddingVertical: 14, justifyContent: "center" },
+  plantNameText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   cellInput: { backgroundColor: "transparent", color: "#fff", borderWidth: 0.5, borderColor: "#4a4f4c", paddingHorizontal: 10, paddingVertical: 11, textAlign: "center", fontSize: 13 },
+  mixedCell: { backgroundColor: "transparent", borderWidth: 0.5, borderColor: "#4a4f4c", paddingHorizontal: 8, paddingVertical: 7, gap: 6 },
+  mixedCellInput: { minHeight: 32, color: "#fff", textAlign: "center", fontSize: 13, paddingHorizontal: 6, paddingVertical: 3 },
+  cellModeSwitch: { flexDirection: "row", borderRadius: 6, backgroundColor: "#141614", padding: 3, gap: 3 },
+  cellModeButton: { flex: 1, minHeight: 24, borderRadius: 4, alignItems: "center", justifyContent: "center" },
+  cellModeButtonActive: { backgroundColor: "#1D9E75" },
+  cellModeText: { color: "#777", fontSize: 9, fontWeight: "800" },
+  cellModeTextActive: { color: "#fff" },
   previewScrollContent: { minWidth: "100%", justifyContent: "center" },
   previewCard: { width: 948, backgroundColor: "#f8f8f8", borderRadius: 10, borderWidth: 1, borderColor: "#d5d5d5", padding: 24, gap: 20 },
   previewHeader: { height: 78, flexDirection: "row", alignItems: "center" },
