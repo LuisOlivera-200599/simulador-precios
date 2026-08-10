@@ -43,11 +43,12 @@ const normalizarNombre = (value: string) =>
 function combinarConBase(base: string[], saved: unknown) {
   if (!Array.isArray(saved)) return base;
 
-  const extras = saved
+  const items = saved
     .filter((item): item is string => typeof item === "string")
     .map(normalizarNombre)
-    .filter((item) => item && !base.includes(item));
-  return [...base, ...new Set(extras)];
+    .filter(Boolean);
+  const uniqueItems = [...new Set(items)];
+  return uniqueItems.length > 0 ? uniqueItems : base;
 }
 
 function filtrarClaves<T>(
@@ -200,6 +201,15 @@ export default function ListaPrecios() {
 
   const eliminarElemento = (tipo: "planta" | "producto", nombre: string) => {
     const esPlanta = tipo === "planta";
+    const items = esPlanta ? plantas : productos;
+    if (items.length <= 1) {
+      avisar(
+        "No se puede eliminar",
+        `La tabla debe conservar al menos ${esPlanta ? "una planta" : "un producto"}.`,
+      );
+      return;
+    }
+
     const remove = () => {
       const shouldRemove = esPlanta
         ? (key: string) => key.startsWith(`${nombre}::`)
@@ -346,12 +356,8 @@ export default function ListaPrecios() {
           <TableStructureManager
             nuevaPlanta={nuevaPlanta}
             nuevoProducto={nuevoProducto}
-            plantasPersonalizadas={plantas.filter(
-              (planta) => !PLANTAS_BASE.includes(planta),
-            )}
-            productosPersonalizados={productos.filter(
-              (producto) => !PRODUCTOS_BASE.includes(producto),
-            )}
+            plantasDisponibles={plantas}
+            productosDisponibles={productos}
             onChangePlanta={setNuevaPlanta}
             onChangeProducto={setNuevoProducto}
             onAddPlanta={() => agregarElemento("planta")}
@@ -455,8 +461,8 @@ export default function ListaPrecios() {
 function TableStructureManager({
   nuevaPlanta,
   nuevoProducto,
-  plantasPersonalizadas,
-  productosPersonalizados,
+  plantasDisponibles,
+  productosDisponibles,
   onChangePlanta,
   onChangeProducto,
   onAddPlanta,
@@ -466,8 +472,8 @@ function TableStructureManager({
 }: {
   nuevaPlanta: string;
   nuevoProducto: string;
-  plantasPersonalizadas: string[];
-  productosPersonalizados: string[];
+  plantasDisponibles: string[];
+  productosDisponibles: string[];
   onChangePlanta: (value: string) => void;
   onChangeProducto: (value: string) => void;
   onAddPlanta: () => void;
@@ -479,14 +485,14 @@ function TableStructureManager({
     <View style={styles.structureCard}>
       <Text style={styles.sectionTitle}>PERSONALIZAR TABLA</Text>
       <Text style={styles.helper}>
-        Agrega una planta o producto nuevo; aparecerá en compra, utilidad y en la imagen final.
+        Agrega o elimina plantas y productos; los cambios se aplican en compra, utilidad y en la imagen final.
       </Text>
       <View style={styles.structureGrid}>
         <StructureGroup
           label="AGREGAR PLANTA"
           placeholder="Nombre de la planta"
           value={nuevaPlanta}
-          customItems={plantasPersonalizadas}
+          items={plantasDisponibles}
           onChange={onChangePlanta}
           onAdd={onAddPlanta}
           onRemove={onRemovePlanta}
@@ -495,7 +501,7 @@ function TableStructureManager({
           label="AGREGAR PRODUCTO"
           placeholder="Nombre del producto"
           value={nuevoProducto}
-          customItems={productosPersonalizados}
+          items={productosDisponibles}
           onChange={onChangeProducto}
           onAdd={onAddProducto}
           onRemove={onRemoveProducto}
@@ -509,7 +515,7 @@ function StructureGroup({
   label,
   placeholder,
   value,
-  customItems,
+  items,
   onChange,
   onAdd,
   onRemove,
@@ -517,7 +523,7 @@ function StructureGroup({
   label: string;
   placeholder: string;
   value: string;
-  customItems: string[];
+  items: string[];
   onChange: (value: string) => void;
   onAdd: () => void;
   onRemove: (value: string) => void;
@@ -548,25 +554,22 @@ function StructureGroup({
           <Text style={styles.addItemText}>AGREGAR</Text>
         </TouchableOpacity>
       </View>
-      {customItems.length > 0 ? (
-        <View style={styles.customItemsRow}>
-          {customItems.map((item) => (
-            <View key={item} style={styles.customItemChip}>
-              <Text style={styles.customItemText}>{item}</Text>
-              <TouchableOpacity
-                accessibilityLabel={`Eliminar ${item}`}
-                accessibilityRole="button"
-                onPress={() => onRemove(item)}
-                style={styles.removeItemButton}
-              >
-                <Ionicons name="close" size={16} color="#f5b7b7" />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <Text style={styles.noCustomItems}>Sin elementos adicionales</Text>
-      )}
+      <Text style={styles.activeItemsLabel}>ACTIVOS EN LA TABLA</Text>
+      <View style={styles.customItemsRow}>
+        {items.map((item) => (
+          <View key={item} style={styles.customItemChip}>
+            <Text style={styles.customItemText}>{item}</Text>
+            <TouchableOpacity
+              accessibilityLabel={`Eliminar ${item}`}
+              accessibilityRole="button"
+              onPress={() => onRemove(item)}
+              style={styles.removeItemButton}
+            >
+              <Ionicons name="close" size={16} color="#f5b7b7" />
+            </TouchableOpacity>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -851,10 +854,16 @@ const styles = StyleSheet.create({
   addItemButton: { minHeight: 44, minWidth: 108, borderRadius: 8, backgroundColor: "#1D9E75", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 10 },
   addItemText: { color: "#fff", fontSize: 10, fontWeight: "800" },
   customItemsRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  activeItemsLabel: {
+    color: "#7f8782",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    marginTop: 2,
+  },
   customItemChip: { minHeight: 30, maxWidth: "100%", borderRadius: 15, backgroundColor: "#303532", borderWidth: 1, borderColor: "#484f4b", flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 11, paddingRight: 5 },
   customItemText: { flexShrink: 1, color: "#fff", fontSize: 10, fontWeight: "700" },
   removeItemButton: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#4b2629", alignItems: "center", justifyContent: "center" },
-  noCustomItems: { color: "#6f7571", fontSize: 10 },
   paletteCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   paletteRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12 },
   colorSwatch: { width: 48, height: 48, borderRadius: 12, borderWidth: 2, borderColor: "#555", alignItems: "center", justifyContent: "center" },
