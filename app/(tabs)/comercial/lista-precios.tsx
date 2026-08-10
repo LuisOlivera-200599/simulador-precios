@@ -19,8 +19,10 @@ type Modo = TipoPercepcion | "mixto";
 type Matriz = Record<string, string>;
 type TiposPorCelda = Record<string, TipoPercepcion>;
 
-const PLANTAS = ["VALERO", "CALLAO", "PAMPILLA", "CONCHÁN", "PISCO"];
-const PRODUCTOS = ["DB5 S50 UV", "DB5 S50", "REGULAR", "PREMIUM"];
+const PLANTAS_BASE = ["VALERO", "CALLAO", "PAMPILLA", "CONCHÁN", "PISCO"];
+const PRODUCTOS_BASE = ["DB5 S50 UV", "DB5 S50", "REGULAR", "PREMIUM"];
+const MAX_PLANTAS = 10;
+const MAX_PRODUCTOS = 8;
 const STORAGE_KEY = "lista-precios-comercial-v1";
 const LOGO_SOURCE = require("../../../assets/images/Logo_Crumar.png");
 const PALETA_COLORES = [
@@ -35,6 +37,27 @@ const PALETA_COLORES = [
 const keyFor = (planta: string, producto: string) => `${planta}::${producto}`;
 const plantKeyFor = (planta: string) => `${planta}::PLANTA`;
 const numberFrom = (value: string) => Number.parseFloat(value.replace(",", ".")) || 0;
+const normalizarNombre = (value: string) =>
+  value.trim().replace(/:+/g, " ").replace(/\s+/g, " ").toLocaleUpperCase("es-PE");
+
+function combinarConBase(base: string[], saved: unknown) {
+  if (!Array.isArray(saved)) return base;
+
+  const extras = saved
+    .filter((item): item is string => typeof item === "string")
+    .map(normalizarNombre)
+    .filter((item) => item && !base.includes(item));
+  return [...base, ...new Set(extras)];
+}
+
+function filtrarClaves<T>(
+  current: Record<string, T>,
+  shouldRemove: (key: string) => boolean,
+) {
+  return Object.fromEntries(
+    Object.entries(current).filter(([key]) => !shouldRemove(key)),
+  ) as Record<string, T>;
+}
 
 function calcularVenta(compra: number, utilidad: number, tipo: TipoPercepcion) {
   if (!compra) return 0;
@@ -50,6 +73,8 @@ function fechaActual() {
 
 export default function ListaPrecios() {
   const [modo, setModo] = useState<Modo>("con");
+  const [plantas, setPlantas] = useState<string[]>(PLANTAS_BASE);
+  const [productos, setProductos] = useState<string[]>(PRODUCTOS_BASE);
   const [compras, setCompras] = useState<Matriz>({});
   const [utilidades, setUtilidades] = useState<Matriz>({});
   const [colores, setColores] = useState<Matriz>({});
@@ -57,6 +82,8 @@ export default function ListaPrecios() {
     PALETA_COLORES[0].valor,
   );
   const [tiposPorCelda, setTiposPorCelda] = useState<TiposPorCelda>({});
+  const [nuevaPlanta, setNuevaPlanta] = useState("");
+  const [nuevoProducto, setNuevoProducto] = useState("");
   const [nota, setNota] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [copiado, setCopiado] = useState(false);
@@ -68,6 +95,8 @@ export default function ListaPrecios() {
         if (!saved) return;
         const data = JSON.parse(saved);
         setModo(data.modo ?? "con");
+        setPlantas(combinarConBase(PLANTAS_BASE, data.plantas));
+        setProductos(combinarConBase(PRODUCTOS_BASE, data.productos));
         setCompras(data.compras ?? {});
         setUtilidades(data.utilidades ?? {});
         setColores(data.colores ?? {});
@@ -82,14 +111,23 @@ export default function ListaPrecios() {
     if (!loaded) return;
     AsyncStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ modo, compras, utilidades, colores, tiposPorCelda, nota }),
+      JSON.stringify({
+        modo,
+        plantas,
+        productos,
+        compras,
+        utilidades,
+        colores,
+        tiposPorCelda,
+        nota,
+      }),
     ).catch(() => undefined);
-  }, [colores, compras, loaded, modo, nota, tiposPorCelda, utilidades]);
+  }, [colores, compras, loaded, modo, nota, plantas, productos, tiposPorCelda, utilidades]);
 
   const ventas = useMemo(() => {
     const result: Record<string, number> = {};
-    PLANTAS.forEach((planta) => {
-      PRODUCTOS.forEach((producto) => {
+    plantas.forEach((planta) => {
+      productos.forEach((producto) => {
         const key = keyFor(planta, producto);
         result[key] = calcularVenta(
           numberFrom(compras[key] ?? ""),
@@ -99,16 +137,16 @@ export default function ListaPrecios() {
       });
     });
     return result;
-  }, [compras, modo, tiposPorCelda, utilidades]);
+  }, [compras, modo, plantas, productos, tiposPorCelda, utilidades]);
 
   const plantasConPrecios = useMemo(
     () =>
-      PLANTAS.filter((planta) =>
-        PRODUCTOS.some(
+      plantas.filter((planta) =>
+        productos.some(
           (producto) => numberFrom(compras[keyFor(planta, producto)] ?? "") > 0,
         ),
       ),
-    [compras],
+    [compras, plantas, productos],
   );
 
   const updateCell = (
@@ -116,6 +154,78 @@ export default function ListaPrecios() {
     key: string,
     value: string,
   ) => setter((current) => ({ ...current, [key]: value }));
+
+  const avisar = (title: string, message: string) => {
+    if (Platform.OS === "web") {
+      window.alert(message);
+      return;
+    }
+    Alert.alert(title, message);
+  };
+
+  const agregarElemento = (tipo: "planta" | "producto") => {
+    const esPlanta = tipo === "planta";
+    const nombre = normalizarNombre(esPlanta ? nuevaPlanta : nuevoProducto);
+    const items = esPlanta ? plantas : productos;
+    const limite = esPlanta ? MAX_PLANTAS : MAX_PRODUCTOS;
+
+    if (!nombre) {
+      avisar("Nombre requerido", `Escribe el nombre de ${esPlanta ? "la planta" : "el producto"}.`);
+      return;
+    }
+    if (!esPlanta && nombre === "PLANTA") {
+      avisar("Nombre no disponible", "Usa un nombre de producto diferente a PLANTA.");
+      return;
+    }
+    if (items.includes(nombre)) {
+      avisar("Nombre repetido", `${nombre} ya está en la tabla.`);
+      return;
+    }
+    if (items.length >= limite) {
+      avisar(
+        "Límite alcanzado",
+        `Puedes tener hasta ${limite} ${esPlanta ? "plantas" : "productos"}.`,
+      );
+      return;
+    }
+
+    if (esPlanta) {
+      setPlantas((current) => [...current, nombre]);
+      setNuevaPlanta("");
+    } else {
+      setProductos((current) => [...current, nombre]);
+      setNuevoProducto("");
+    }
+  };
+
+  const eliminarElemento = (tipo: "planta" | "producto", nombre: string) => {
+    const esPlanta = tipo === "planta";
+    const remove = () => {
+      const shouldRemove = esPlanta
+        ? (key: string) => key.startsWith(`${nombre}::`)
+        : (key: string) => key.endsWith(`::${nombre}`);
+
+      if (esPlanta) {
+        setPlantas((current) => current.filter((item) => item !== nombre));
+      } else {
+        setProductos((current) => current.filter((item) => item !== nombre));
+      }
+      setCompras((current) => filtrarClaves(current, shouldRemove));
+      setUtilidades((current) => filtrarClaves(current, shouldRemove));
+      setColores((current) => filtrarClaves(current, shouldRemove));
+      setTiposPorCelda((current) => filtrarClaves(current, shouldRemove));
+    };
+
+    const message = `¿Deseas eliminar ${nombre} y todos sus valores de la tabla?`;
+    if (Platform.OS === "web") {
+      if (window.confirm(message)) remove();
+      return;
+    }
+    Alert.alert("Eliminar de la tabla", message, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Eliminar", style: "destructive", onPress: remove },
+    ]);
+  };
 
   const pintarCelda = (key: string) => {
     setColores((current) => {
@@ -131,8 +241,8 @@ export default function ListaPrecios() {
     if (nuevoModo === "mixto" && modo !== "mixto") {
       setTiposPorCelda((current) => {
         const next = { ...current };
-        PLANTAS.forEach((planta) => {
-          PRODUCTOS.forEach((producto) => {
+        plantas.forEach((planta) => {
+          productos.forEach((producto) => {
             const key = keyFor(planta, producto);
             next[key] ??= modo;
           });
@@ -197,6 +307,12 @@ export default function ListaPrecios() {
     }
   };
 
+  const outputValueColumnWidth = Math.max(150, 760 / productos.length);
+  const previewWidth = Math.max(
+    948,
+    48 + 140 + productos.length * outputValueColumnWidth,
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -227,9 +343,30 @@ export default function ListaPrecios() {
             </Text>
           </View>
 
+          <TableStructureManager
+            nuevaPlanta={nuevaPlanta}
+            nuevoProducto={nuevoProducto}
+            plantasPersonalizadas={plantas.filter(
+              (planta) => !PLANTAS_BASE.includes(planta),
+            )}
+            productosPersonalizados={productos.filter(
+              (producto) => !PRODUCTOS_BASE.includes(producto),
+            )}
+            onChangePlanta={setNuevaPlanta}
+            onChangeProducto={setNuevoProducto}
+            onAddPlanta={() => agregarElemento("planta")}
+            onAddProducto={() => agregarElemento("producto")}
+            onRemovePlanta={(planta) => eliminarElemento("planta", planta)}
+            onRemoveProducto={(producto) =>
+              eliminarElemento("producto", producto)
+            }
+          />
+
           <PriceEditor
             title="1. PRECIOS DE COMPRA"
             subtitle="Ingresa el precio del proveedor por galón."
+            plantas={plantas}
+            productos={productos}
             values={compras}
             onChange={(key, value) => updateCell(setCompras, key, value)}
             showModeControls={modo === "mixto"}
@@ -242,6 +379,8 @@ export default function ListaPrecios() {
           <PriceEditor
             title="2. UTILIDAD"
             subtitle="Ingresa la utilidad antes del IGV para cada producto."
+            plantas={plantas}
+            productos={productos}
             values={utilidades}
             onChange={(key, value) => updateCell(setUtilidades, key, value)}
           />
@@ -267,7 +406,11 @@ export default function ListaPrecios() {
             showsHorizontalScrollIndicator
             contentContainerStyle={styles.previewScrollContent}
           >
-            <View ref={previewRef} collapsable={false} style={styles.previewCard}>
+            <View
+              ref={previewRef}
+              collapsable={false}
+              style={[styles.previewCard, { width: previewWidth }]}
+            >
               <View style={styles.previewHeader}>
                 <Text style={styles.previewTitle}>Lista de precios vigentes:</Text>
                 <Text style={styles.previewDate}>{fechaActual()}</Text>
@@ -280,6 +423,8 @@ export default function ListaPrecios() {
 
               <PriceTable
                 plantas={plantasConPrecios}
+                productos={productos}
+                valueColumnWidth={outputValueColumnWidth}
                 values={ventas}
                 colors={colores}
                 onPaint={pintarCelda}
@@ -304,6 +449,125 @@ export default function ListaPrecios() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function TableStructureManager({
+  nuevaPlanta,
+  nuevoProducto,
+  plantasPersonalizadas,
+  productosPersonalizados,
+  onChangePlanta,
+  onChangeProducto,
+  onAddPlanta,
+  onAddProducto,
+  onRemovePlanta,
+  onRemoveProducto,
+}: {
+  nuevaPlanta: string;
+  nuevoProducto: string;
+  plantasPersonalizadas: string[];
+  productosPersonalizados: string[];
+  onChangePlanta: (value: string) => void;
+  onChangeProducto: (value: string) => void;
+  onAddPlanta: () => void;
+  onAddProducto: () => void;
+  onRemovePlanta: (value: string) => void;
+  onRemoveProducto: (value: string) => void;
+}) {
+  return (
+    <View style={styles.structureCard}>
+      <Text style={styles.sectionTitle}>PERSONALIZAR TABLA</Text>
+      <Text style={styles.helper}>
+        Agrega una planta o producto nuevo; aparecerá en compra, utilidad y en la imagen final.
+      </Text>
+      <View style={styles.structureGrid}>
+        <StructureGroup
+          label="AGREGAR PLANTA"
+          placeholder="Nombre de la planta"
+          value={nuevaPlanta}
+          customItems={plantasPersonalizadas}
+          onChange={onChangePlanta}
+          onAdd={onAddPlanta}
+          onRemove={onRemovePlanta}
+        />
+        <StructureGroup
+          label="AGREGAR PRODUCTO"
+          placeholder="Nombre del producto"
+          value={nuevoProducto}
+          customItems={productosPersonalizados}
+          onChange={onChangeProducto}
+          onAdd={onAddProducto}
+          onRemove={onRemoveProducto}
+        />
+      </View>
+    </View>
+  );
+}
+
+function StructureGroup({
+  label,
+  placeholder,
+  value,
+  customItems,
+  onChange,
+  onAdd,
+  onRemove,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  customItems: string[];
+  onChange: (value: string) => void;
+  onAdd: () => void;
+  onRemove: (value: string) => void;
+}) {
+  return (
+    <View style={styles.structureGroup}>
+      <Text style={styles.structureLabel}>{label}</Text>
+      <View style={styles.structureInputRow}>
+        <TextInput
+          accessibilityLabel={placeholder}
+          autoCapitalize="characters"
+          maxLength={28}
+          onChangeText={onChange}
+          onSubmitEditing={onAdd}
+          placeholder={placeholder}
+          placeholderTextColor="#6e726f"
+          returnKeyType="done"
+          style={styles.structureInput}
+          value={value}
+        />
+        <TouchableOpacity
+          accessibilityLabel={label}
+          accessibilityRole="button"
+          onPress={onAdd}
+          style={styles.addItemButton}
+        >
+          <Ionicons name="add" size={20} color="#fff" />
+          <Text style={styles.addItemText}>AGREGAR</Text>
+        </TouchableOpacity>
+      </View>
+      {customItems.length > 0 ? (
+        <View style={styles.customItemsRow}>
+          {customItems.map((item) => (
+            <View key={item} style={styles.customItemChip}>
+              <Text style={styles.customItemText}>{item}</Text>
+              <TouchableOpacity
+                accessibilityLabel={`Eliminar ${item}`}
+                accessibilityRole="button"
+                onPress={() => onRemove(item)}
+                style={styles.removeItemButton}
+              >
+                <Ionicons name="close" size={16} color="#f5b7b7" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Text style={styles.noCustomItems}>Sin elementos adicionales</Text>
+      )}
+    </View>
   );
 }
 
@@ -375,6 +639,8 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
 function PriceEditor({
   title,
   subtitle,
+  plantas,
+  productos,
   values,
   onChange,
   showModeControls = false,
@@ -383,6 +649,8 @@ function PriceEditor({
 }: {
   title: string;
   subtitle: string;
+  plantas: string[];
+  productos: string[];
   values: Matriz;
   onChange: (key: string, value: string) => void;
   showModeControls?: boolean;
@@ -401,20 +669,21 @@ function PriceEditor({
         <View style={styles.editorTable}>
           <View style={styles.tableRow}>
             <Text style={[styles.tableHeader, styles.editorPlantCell]}>PLANTA</Text>
-            {PRODUCTOS.map((producto) => (
+            {productos.map((producto) => (
               <Text key={producto} style={[styles.tableHeader, styles.editorValueCell]}>{producto}</Text>
             ))}
           </View>
-          {PLANTAS.map((planta, index) => (
+          {plantas.map((planta, index) => (
             <View key={planta} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlternate]}>
               <View style={[styles.plantName, styles.editorPlantCell]}>
                 <Text style={styles.plantNameText}>{planta}</Text>
               </View>
-              {PRODUCTOS.map((producto) => {
+              {productos.map((producto) => {
                 const key = keyFor(planta, producto);
                 return showModeControls && cellModes && onModeChange ? (
                   <View key={key} style={[styles.mixedCell, styles.editorValueCell]}>
                     <TextInput
+                      accessibilityLabel={`${title}: ${planta}, ${producto}`}
                       style={styles.mixedCellInput}
                       value={values[key] ?? ""}
                       onChangeText={(value) => onChange(key, value)}
@@ -440,6 +709,7 @@ function PriceEditor({
                 ) : (
                   <TextInput
                     key={key}
+                    accessibilityLabel={`${title}: ${planta}, ${producto}`}
                     style={[styles.cellInput, styles.editorValueCell]}
                     value={values[key] ?? ""}
                     onChangeText={(value) => onChange(key, value)}
@@ -485,11 +755,15 @@ function CellModeButton({
 
 function PriceTable({
   plantas,
+  productos,
+  valueColumnWidth,
   values,
   colors,
   onPaint,
 }: {
   plantas: string[];
+  productos: string[];
+  valueColumnWidth: number;
   values: Record<string, number>;
   colors: Matriz;
   onPaint: (key: string) => void;
@@ -498,8 +772,13 @@ function PriceTable({
     <View>
       <View style={styles.outputRow}>
         <Text style={[styles.outputHeader, styles.outputPlantCell]}>PLANTA</Text>
-        {PRODUCTOS.map((producto) => (
-          <Text key={producto} style={[styles.outputHeader, styles.outputValueCell]}>{producto}</Text>
+        {productos.map((producto) => (
+          <Text
+            key={producto}
+            style={[styles.outputHeader, { width: valueColumnWidth }]}
+          >
+            {producto}
+          </Text>
         ))}
       </View>
       {plantas.map((planta) => {
@@ -521,7 +800,7 @@ function PriceTable({
             >
               <Text style={styles.outputPlantText}>{planta}</Text>
             </TouchableOpacity>
-            {PRODUCTOS.map((producto) => {
+            {productos.map((producto) => {
               const key = keyFor(planta, producto);
               const value = values[key];
 
@@ -535,7 +814,7 @@ function PriceTable({
                   style={[
                     styles.outputCell,
                     styles.outputValue,
-                    styles.outputValueCell,
+                    { width: valueColumnWidth },
                     colors[key] ? { backgroundColor: colors[key] } : null,
                   ]}
                 >
@@ -563,6 +842,19 @@ const styles = StyleSheet.create({
   modeCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   card: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   messageCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
+  structureCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
+  structureGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
+  structureGroup: { flex: 1, minWidth: 280, borderRadius: 12, backgroundColor: "#191b1a", borderWidth: 1, borderColor: "#343936", padding: 12, gap: 9 },
+  structureLabel: { color: "#d8ddda", fontSize: 11, fontWeight: "800" },
+  structureInputRow: { flexDirection: "row", gap: 8 },
+  structureInput: { flex: 1, minWidth: 120, minHeight: 44, borderRadius: 8, backgroundColor: "#101110", color: "#fff", borderWidth: 1, borderColor: "#454b47", paddingHorizontal: 11, fontSize: 12 },
+  addItemButton: { minHeight: 44, minWidth: 108, borderRadius: 8, backgroundColor: "#1D9E75", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 10 },
+  addItemText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  customItemsRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  customItemChip: { minHeight: 30, maxWidth: "100%", borderRadius: 15, backgroundColor: "#303532", borderWidth: 1, borderColor: "#484f4b", flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 11, paddingRight: 5 },
+  customItemText: { flexShrink: 1, color: "#fff", fontSize: 10, fontWeight: "700" },
+  removeItemButton: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#4b2629", alignItems: "center", justifyContent: "center" },
+  noCustomItems: { color: "#6f7571", fontSize: 10 },
   paletteCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   paletteRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12 },
   colorSwatch: { width: 48, height: 48, borderRadius: 12, borderWidth: 2, borderColor: "#555", alignItems: "center", justifyContent: "center" },
@@ -602,7 +894,6 @@ const styles = StyleSheet.create({
   previewDate: { width: 180, color: "#111", fontSize: 20, textAlign: "center" },
   previewLogo: { width: 120, height: 78 },
   outputPlantCell: { width: 140 },
-  outputValueCell: { width: 190 },
   outputRow: { flexDirection: "row" },
   outputHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 12, fontWeight: "800" },
   outputCell: { minHeight: 44, borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
