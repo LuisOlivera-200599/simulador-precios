@@ -14,16 +14,19 @@ import {
   View,
 } from "react-native";
 
-type TipoPercepcion = "con" | "sin";
-type Modo = TipoPercepcion | "mixto";
 type Matriz = Record<string, string>;
-type TiposPorCelda = Record<string, TipoPercepcion>;
+type PreciosVenta = {
+  sinPercepcion: number;
+  conPercepcion: number;
+};
 
 const PLANTAS_BASE = ["VALERO", "CALLAO", "PAMPILLA", "CONCHÁN", "PISCO"];
 const PRODUCTOS_BASE = ["DB5 S50 UV", "DB5 S50", "REGULAR", "PREMIUM"];
 const MAX_PLANTAS = 10;
 const MAX_PRODUCTOS = 8;
 const STORAGE_KEY = "lista-precios-comercial-v1";
+const FACTOR_IGV = 1.18;
+const TASA_PERCEPCION = 0.01;
 const LOGO_SOURCE = require("../../../assets/images/Logo_Crumar.png");
 const PALETA_COLORES = [
   { nombre: "Amarillo", valor: "#FFD54F" },
@@ -60,12 +63,16 @@ function filtrarClaves<T>(
   ) as Record<string, T>;
 }
 
-function calcularVenta(compra: number, utilidad: number, tipo: TipoPercepcion) {
-  if (!compra) return 0;
+function calcularVenta(compra: number, utilidad: number): PreciosVenta {
+  if (!compra) return { sinPercepcion: 0, conPercepcion: 0 };
 
-  const precioTotal = tipo === "con" ? compra - compra / 1.01 / 100 : compra;
-  const baseImponible = precioTotal / 1.18;
-  return (baseImponible + utilidad) * 1.18;
+  const baseSinIgv = compra / FACTOR_IGV;
+  const precioSinPercepcion = (baseSinIgv + utilidad) * FACTOR_IGV;
+
+  return {
+    sinPercepcion: precioSinPercepcion,
+    conPercepcion: precioSinPercepcion * (1 + TASA_PERCEPCION),
+  };
 }
 
 function fechaActual() {
@@ -73,7 +80,6 @@ function fechaActual() {
 }
 
 export default function ListaPrecios() {
-  const [modo, setModo] = useState<Modo>("con");
   const [plantas, setPlantas] = useState<string[]>(PLANTAS_BASE);
   const [productos, setProductos] = useState<string[]>(PRODUCTOS_BASE);
   const [compras, setCompras] = useState<Matriz>({});
@@ -82,7 +88,6 @@ export default function ListaPrecios() {
   const [colorPincel, setColorPincel] = useState<string | null>(
     PALETA_COLORES[0].valor,
   );
-  const [tiposPorCelda, setTiposPorCelda] = useState<TiposPorCelda>({});
   const [nuevaPlanta, setNuevaPlanta] = useState("");
   const [nuevoProducto, setNuevoProducto] = useState("");
   const [nota, setNota] = useState("");
@@ -95,13 +100,11 @@ export default function ListaPrecios() {
       .then((saved) => {
         if (!saved) return;
         const data = JSON.parse(saved);
-        setModo(data.modo ?? "con");
         setPlantas(combinarConBase(PLANTAS_BASE, data.plantas));
         setProductos(combinarConBase(PRODUCTOS_BASE, data.productos));
         setCompras(data.compras ?? {});
         setUtilidades(data.utilidades ?? {});
         setColores(data.colores ?? {});
-        setTiposPorCelda(data.tiposPorCelda ?? {});
         setNota(data.nota ?? "");
       })
       .catch(() => undefined)
@@ -113,32 +116,29 @@ export default function ListaPrecios() {
     AsyncStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
-        modo,
         plantas,
         productos,
         compras,
         utilidades,
         colores,
-        tiposPorCelda,
         nota,
       }),
     ).catch(() => undefined);
-  }, [colores, compras, loaded, modo, nota, plantas, productos, tiposPorCelda, utilidades]);
+  }, [colores, compras, loaded, nota, plantas, productos, utilidades]);
 
   const ventas = useMemo(() => {
-    const result: Record<string, number> = {};
+    const result: Record<string, PreciosVenta> = {};
     plantas.forEach((planta) => {
       productos.forEach((producto) => {
         const key = keyFor(planta, producto);
         result[key] = calcularVenta(
           numberFrom(compras[key] ?? ""),
           numberFrom(utilidades[key] ?? ""),
-          modo === "mixto" ? (tiposPorCelda[key] ?? "con") : modo,
         );
       });
     });
     return result;
-  }, [compras, modo, plantas, productos, tiposPorCelda, utilidades]);
+  }, [compras, plantas, productos, utilidades]);
 
   const plantasConPrecios = useMemo(
     () =>
@@ -223,7 +223,6 @@ export default function ListaPrecios() {
       setCompras((current) => filtrarClaves(current, shouldRemove));
       setUtilidades((current) => filtrarClaves(current, shouldRemove));
       setColores((current) => filtrarClaves(current, shouldRemove));
-      setTiposPorCelda((current) => filtrarClaves(current, shouldRemove));
     };
 
     const message = `¿Deseas eliminar ${nombre} y todos sus valores de la tabla?`;
@@ -247,28 +246,11 @@ export default function ListaPrecios() {
     });
   };
 
-  const seleccionarModo = (nuevoModo: Modo) => {
-    if (nuevoModo === "mixto" && modo !== "mixto") {
-      setTiposPorCelda((current) => {
-        const next = { ...current };
-        plantas.forEach((planta) => {
-          productos.forEach((producto) => {
-            const key = keyFor(planta, producto);
-            next[key] ??= modo;
-          });
-        });
-        return next;
-      });
-    }
-    setModo(nuevoModo);
-  };
-
   const limpiar = () => {
     const clear = () => {
       setCompras({});
       setUtilidades({});
       setColores({});
-      setTiposPorCelda({});
       setNota("");
     };
 
@@ -339,20 +321,6 @@ export default function ListaPrecios() {
             />
           </View>
 
-          <View style={styles.modeCard}>
-            <Text style={styles.sectionTitle}>TIPO DE CÁLCULO</Text>
-            <View style={styles.segmented}>
-              <ModeButton label="CON PERCEPCIÓN" active={modo === "con"} onPress={() => seleccionarModo("con")} />
-              <ModeButton label="SIN PERCEPCIÓN" active={modo === "sin"} onPress={() => seleccionarModo("sin")} />
-              <ModeButton label="MIXTO" active={modo === "mixto"} onPress={() => seleccionarModo("mixto")} />
-            </View>
-            <Text style={styles.helperLast}>
-              {modo === "mixto"
-                ? "Elige CON o SIN debajo de cada precio de compra. La utilidad se mantiene antes del IGV."
-                : "La utilidad se ingresa antes del IGV, igual que en los simuladores individuales."}
-            </Text>
-          </View>
-
           <TableStructureManager
             nuevaPlanta={nuevaPlanta}
             nuevoProducto={nuevoProducto}
@@ -369,17 +337,12 @@ export default function ListaPrecios() {
           />
 
           <PriceEditor
-            title="1. PRECIOS DE COMPRA"
-            subtitle="Ingresa el precio del proveedor por galón."
+            title="1. PRECIOS DE COMPRA SIN PERCEPCIÓN"
+            subtitle="Ingresa el precio de compra por galón, incluido el IGV y sin percepción."
             plantas={plantas}
             productos={productos}
             values={compras}
             onChange={(key, value) => updateCell(setCompras, key, value)}
-            showModeControls={modo === "mixto"}
-            cellModes={tiposPorCelda}
-            onModeChange={(key, value) =>
-              setTiposPorCelda((current) => ({ ...current, [key]: value }))
-            }
           />
 
           <PriceEditor
@@ -425,6 +388,16 @@ export default function ListaPrecios() {
                   style={styles.previewLogo}
                   resizeMode="contain"
                 />
+              </View>
+
+              <View style={styles.priceLegend}>
+                <Text style={styles.priceLegendText}>
+                  <Text style={styles.priceLegendCode}>SIN P.</Text> Sin percepción
+                </Text>
+                <View style={styles.priceLegendDivider} />
+                <Text style={styles.priceLegendText}>
+                  <Text style={styles.priceLegendCode}>CON P.</Text> Con percepción
+                </Text>
               </View>
 
               <PriceTable
@@ -626,19 +599,6 @@ function ColorPalette({
   );
 }
 
-function ModeButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <TouchableOpacity
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      style={[styles.modeButton, active && styles.modeButtonActive]}
-      onPress={onPress}
-    >
-      <Text style={[styles.modeText, active && styles.modeTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
 function PriceEditor({
   title,
   subtitle,
@@ -646,9 +606,6 @@ function PriceEditor({
   productos,
   values,
   onChange,
-  showModeControls = false,
-  cellModes,
-  onModeChange,
 }: {
   title: string;
   subtitle: string;
@@ -656,9 +613,6 @@ function PriceEditor({
   productos: string[];
   values: Matriz;
   onChange: (key: string, value: string) => void;
-  showModeControls?: boolean;
-  cellModes?: TiposPorCelda;
-  onModeChange?: (key: string, value: TipoPercepcion) => void;
 }) {
   return (
     <View style={styles.card}>
@@ -683,33 +637,7 @@ function PriceEditor({
               </View>
               {productos.map((producto) => {
                 const key = keyFor(planta, producto);
-                return showModeControls && cellModes && onModeChange ? (
-                  <View key={key} style={[styles.mixedCell, styles.editorValueCell]}>
-                    <TextInput
-                      accessibilityLabel={`${title}: ${planta}, ${producto}`}
-                      style={styles.mixedCellInput}
-                      value={values[key] ?? ""}
-                      onChangeText={(value) => onChange(key, value)}
-                      keyboardType="decimal-pad"
-                      placeholder="0.0000"
-                      placeholderTextColor="#5d5d5d"
-                    />
-                    <View style={styles.cellModeSwitch}>
-                      <CellModeButton
-                        label="CON"
-                        accessibilityLabel={`Con percepción: ${planta} ${producto}`}
-                        active={(cellModes[key] ?? "con") === "con"}
-                        onPress={() => onModeChange(key, "con")}
-                      />
-                      <CellModeButton
-                        label="SIN"
-                        accessibilityLabel={`Sin percepción: ${planta} ${producto}`}
-                        active={(cellModes[key] ?? "con") === "sin"}
-                        onPress={() => onModeChange(key, "sin")}
-                      />
-                    </View>
-                  </View>
-                ) : (
+                return (
                   <TextInput
                     key={key}
                     accessibilityLabel={`${title}: ${planta}, ${producto}`}
@@ -730,32 +658,6 @@ function PriceEditor({
   );
 }
 
-function CellModeButton({
-  label,
-  accessibilityLabel,
-  active,
-  onPress,
-}: {
-  label: string;
-  accessibilityLabel: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      style={[styles.cellModeButton, active && styles.cellModeButtonActive]}
-      onPress={onPress}
-    >
-      <Text style={[styles.cellModeText, active && styles.cellModeTextActive]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
 function PriceTable({
   plantas,
   productos,
@@ -767,7 +669,7 @@ function PriceTable({
   plantas: string[];
   productos: string[];
   valueColumnWidth: number;
-  values: Record<string, number>;
+  values: Record<string, PreciosVenta>;
   colors: Matriz;
   onPaint: (key: string) => void;
 }) {
@@ -806,6 +708,7 @@ function PriceTable({
             {productos.map((producto) => {
               const key = keyFor(planta, producto);
               const value = values[key];
+              const hasPrice = value?.sinPercepcion > 0;
 
               return (
                 <TouchableOpacity
@@ -821,9 +724,23 @@ function PriceTable({
                     colors[key] ? { backgroundColor: colors[key] } : null,
                   ]}
                 >
-                  <Text style={styles.outputValueText}>
-                    {value ? value.toFixed(4) : ""}
-                  </Text>
+                  {hasPrice ? (
+                    <View style={styles.outputPricePair}>
+                      <View style={styles.outputPriceLine}>
+                        <Text style={styles.outputPriceLabel}>SIN P.</Text>
+                        <Text style={styles.outputPriceNumber}>
+                          {value.sinPercepcion.toFixed(4)}
+                        </Text>
+                      </View>
+                      <View style={styles.outputPriceDivider} />
+                      <View style={styles.outputPriceLine}>
+                        <Text style={styles.outputPriceLabel}>CON P.</Text>
+                        <Text style={styles.outputPriceNumber}>
+                          {value.conPercepcion.toFixed(4)}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
                 </TouchableOpacity>
               );
             })}
@@ -842,7 +759,6 @@ const styles = StyleSheet.create({
   eyebrow: { color: "#1D9E75", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
   headerTitle: { color: "#fff", fontSize: 24, fontWeight: "800" },
   logo: { width: 92, height: 54 },
-  modeCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   card: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   messageCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
   structureCard: { backgroundColor: "#222523", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#353a37" },
@@ -873,12 +789,6 @@ const styles = StyleSheet.create({
   eraseColorText: { color: "#fff", fontSize: 11, fontWeight: "800" },
   sectionTitle: { color: "#fff", fontSize: 15, fontWeight: "800", marginBottom: 5 },
   helper: { color: "#aaa", fontSize: 12, lineHeight: 18, marginBottom: 12 },
-  helperLast: { color: "#aaa", fontSize: 12, lineHeight: 18, marginTop: 9 },
-  segmented: { flexDirection: "row", backgroundColor: "#161616", borderRadius: 9, padding: 4, gap: 4 },
-  modeButton: { flex: 1, paddingVertical: 11, borderRadius: 7, alignItems: "center" },
-  modeButtonActive: { backgroundColor: "#1D9E75" },
-  modeText: { color: "#8f8f8f", fontSize: 10, fontWeight: "800", textAlign: "center" },
-  modeTextActive: { color: "#fff" },
   tableRow: { flexDirection: "row" },
   tableScrollContent: { flexGrow: 1, minWidth: 850 },
   editorTable: { flex: 1, borderRadius: 10, overflow: "hidden", borderWidth: 1, borderColor: "#4a4f4c" },
@@ -889,27 +799,28 @@ const styles = StyleSheet.create({
   plantName: { backgroundColor: "#343835", borderWidth: 0.5, borderColor: "#4a4f4c", paddingHorizontal: 12, paddingVertical: 14, justifyContent: "center" },
   plantNameText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   cellInput: { backgroundColor: "transparent", color: "#fff", borderWidth: 0.5, borderColor: "#4a4f4c", paddingHorizontal: 10, paddingVertical: 11, textAlign: "center", fontSize: 13 },
-  mixedCell: { backgroundColor: "transparent", borderWidth: 0.5, borderColor: "#4a4f4c", paddingHorizontal: 8, paddingVertical: 7, gap: 6 },
-  mixedCellInput: { minHeight: 32, color: "#fff", textAlign: "center", fontSize: 13, paddingHorizontal: 6, paddingVertical: 3 },
-  cellModeSwitch: { flexDirection: "row", borderRadius: 6, backgroundColor: "#141614", padding: 3, gap: 3 },
-  cellModeButton: { flex: 1, minHeight: 24, borderRadius: 4, alignItems: "center", justifyContent: "center" },
-  cellModeButtonActive: { backgroundColor: "#1D9E75" },
-  cellModeText: { color: "#777", fontSize: 9, fontWeight: "800" },
-  cellModeTextActive: { color: "#fff" },
   previewScrollContent: { minWidth: "100%", justifyContent: "center" },
   previewCard: { width: 948, backgroundColor: "#f8f8f8", borderRadius: 10, borderWidth: 1, borderColor: "#d5d5d5", padding: 24, gap: 20 },
   previewHeader: { height: 78, flexDirection: "row", alignItems: "center" },
   previewTitle: { flex: 1, color: "#111", fontSize: 20, fontWeight: "800" },
   previewDate: { width: 180, color: "#111", fontSize: 20, textAlign: "center" },
   previewLogo: { width: 120, height: 78 },
+  priceLegend: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 14, paddingRight: 4 },
+  priceLegendText: { color: "#333", fontSize: 12 },
+  priceLegendCode: { fontWeight: "700" },
+  priceLegendDivider: { width: 1, height: 14, backgroundColor: "#c7c7c7" },
   outputPlantCell: { width: 140 },
   outputRow: { flexDirection: "row" },
   outputHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 12, fontWeight: "800" },
-  outputCell: { minHeight: 44, borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
+  outputCell: { minHeight: 76, borderWidth: 0.5, borderColor: "#222", paddingVertical: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
   outputPlant: { backgroundColor: "#bbb7b7" },
   outputValue: { backgroundColor: "#fff" },
   outputPlantText: { color: "#111", textAlign: "center", fontSize: 14 },
-  outputValueText: { color: "#111", textAlign: "center", fontSize: 15 },
+  outputPricePair: { width: "100%" },
+  outputPriceLine: { minHeight: 27, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  outputPriceDivider: { height: 1, backgroundColor: "#d6d6d6" },
+  outputPriceLabel: { color: "#303030", fontSize: 11, fontWeight: "600" },
+  outputPriceNumber: { color: "#111", fontSize: 14, fontWeight: "400", fontVariant: ["tabular-nums"] },
   noteEditor: { minHeight: 44, borderRadius: 8, backgroundColor: "#171717", color: "#fff", borderWidth: 1, borderColor: "#4a4a4a", paddingHorizontal: 12, fontWeight: "700" },
   clientNote: { minHeight: 34, color: "#111", paddingTop: 6, fontWeight: "700", fontSize: 15 },
   exportButton: { height: 52, backgroundColor: "#1D9E75", borderRadius: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9 },
