@@ -17,6 +17,7 @@ import {
 type Matriz = Record<string, string>;
 type PreciosVenta = {
   sinPercepcion: number;
+  percepcion: number;
   conPercepcion: number;
 };
 
@@ -64,14 +65,18 @@ function filtrarClaves<T>(
 }
 
 function calcularVenta(compra: number, utilidad: number): PreciosVenta {
-  if (!compra) return { sinPercepcion: 0, conPercepcion: 0 };
+  if (!compra) {
+    return { sinPercepcion: 0, percepcion: 0, conPercepcion: 0 };
+  }
 
   const baseSinIgv = compra / FACTOR_IGV;
   const precioSinPercepcion = (baseSinIgv + utilidad) * FACTOR_IGV;
+  const percepcion = precioSinPercepcion * TASA_PERCEPCION;
 
   return {
     sinPercepcion: precioSinPercepcion,
-    conPercepcion: precioSinPercepcion * (1 + TASA_PERCEPCION),
+    percepcion,
+    conPercepcion: precioSinPercepcion + percepcion,
   };
 }
 
@@ -736,6 +741,13 @@ function PriceTable({
                       </View>
                       <View style={styles.outputPriceDivider} />
                       <View style={styles.outputPriceLine}>
+                        <Text style={styles.outputPriceLabel}>PERCEPCIÓN</Text>
+                        <Text style={styles.outputPriceNumber}>
+                          {value.percepcion.toFixed(4)}
+                        </Text>
+                      </View>
+                      <View style={styles.outputPriceDivider} />
+                      <View style={styles.outputPriceLine}>
                         <Text style={styles.outputPriceLabel}>CON P.</Text>
                         <Text style={styles.outputPriceNumber}>
                           {value.conPercepcion.toFixed(4)}
@@ -814,14 +826,14 @@ const styles = StyleSheet.create({
   outputPlantCell: { width: 140 },
   outputRow: { flexDirection: "row" },
   outputHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 12, fontWeight: "800" },
-  outputCell: { minHeight: 76, borderWidth: 0.5, borderColor: "#222", paddingVertical: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  outputCell: { minHeight: 104, borderWidth: 0.5, borderColor: "#222", paddingVertical: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
   outputPlant: { backgroundColor: "#bbb7b7" },
   outputValue: { backgroundColor: "#fff" },
   outputPlantText: { color: "#111", textAlign: "center", fontSize: 14 },
   outputPricePair: { width: "100%" },
-  outputPriceLine: { minHeight: 27, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  outputPriceLine: { minHeight: 27, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 },
   outputPriceDivider: { height: 1, backgroundColor: "#d6d6d6" },
-  outputPriceLabel: { color: "#303030", fontSize: 11, fontWeight: "600" },
+  outputPriceLabel: { color: "#303030", fontSize: 10, fontWeight: "600" },
   outputPriceNumber: { color: "#111", fontSize: 14, fontWeight: "400", fontVariant: ["tabular-nums"] },
   noteEditor: { minHeight: 44, borderRadius: 8, backgroundColor: "#171717", color: "#fff", borderWidth: 1, borderColor: "#4a4a4a", paddingHorizontal: 12, fontWeight: "700" },
   clientNote: { minHeight: 34, color: "#111", paddingTop: 6, fontWeight: "700", fontSize: 15 },
