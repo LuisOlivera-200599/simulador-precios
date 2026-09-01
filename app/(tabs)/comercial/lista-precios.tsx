@@ -93,9 +93,11 @@ export default function ListaPrecios() {
   const [nota, setNota] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const [fechaLista, setFechaLista] = useState("");
   const previewRef = useRef<View>(null);
 
   useEffect(() => {
+    setFechaLista(fechaActual());
     AsyncStorage.getItem(STORAGE_KEY)
       .then((saved) => {
         if (!saved) return;
@@ -382,7 +384,7 @@ export default function ListaPrecios() {
             >
               <View style={styles.previewHeader}>
                 <Text style={styles.previewTitle}>Lista de precios vigentes:</Text>
-                <Text style={styles.previewDate}>{fechaActual()}</Text>
+                <Text style={styles.previewDate}>{fechaLista}</Text>
                 <Image
                   source={LOGO_SOURCE}
                   style={styles.previewLogo}
