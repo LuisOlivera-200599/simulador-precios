@@ -16,8 +16,6 @@ import {
 
 type Matriz = Record<string, string>;
 type PreciosVenta = {
-  sinPercepcion: number;
-  percepcion: number;
   conPercepcion: number;
 };
 
@@ -66,17 +64,14 @@ function filtrarClaves<T>(
 
 function calcularVenta(compra: number, utilidad: number): PreciosVenta {
   if (!compra) {
-    return { sinPercepcion: 0, percepcion: 0, conPercepcion: 0 };
+    return { conPercepcion: 0 };
   }
 
   const baseSinIgv = compra / FACTOR_IGV;
   const precioSinPercepcion = (baseSinIgv + utilidad) * FACTOR_IGV;
-  const percepcion = precioSinPercepcion * TASA_PERCEPCION;
 
   return {
-    sinPercepcion: precioSinPercepcion,
-    percepcion,
-    conPercepcion: precioSinPercepcion + percepcion,
+    conPercepcion: precioSinPercepcion * (1 + TASA_PERCEPCION),
   };
 }
 
@@ -397,16 +392,6 @@ export default function ListaPrecios() {
                 />
               </View>
 
-              <View style={styles.priceLegend}>
-                <Text style={styles.priceLegendText}>
-                  <Text style={styles.priceLegendCode}>SIN P.</Text> Sin percepción
-                </Text>
-                <View style={styles.priceLegendDivider} />
-                <Text style={styles.priceLegendText}>
-                  <Text style={styles.priceLegendCode}>CON P.</Text> Con percepción
-                </Text>
-              </View>
-
               <PriceTable
                 plantas={plantasConPrecios}
                 productos={productos}
@@ -715,7 +700,7 @@ function PriceTable({
             {productos.map((producto) => {
               const key = keyFor(planta, producto);
               const value = values[key];
-              const hasPrice = value?.sinPercepcion > 0;
+              const hasPrice = value?.conPercepcion > 0;
 
               return (
                 <TouchableOpacity
@@ -732,27 +717,11 @@ function PriceTable({
                   ]}
                 >
                   {hasPrice ? (
-                    <View style={styles.outputPricePair}>
-                      <View style={styles.outputPriceLine}>
-                        <Text style={styles.outputPriceLabel}>SIN P.</Text>
-                        <Text style={styles.outputPriceNumber}>
-                          {value.sinPercepcion.toFixed(4)}
-                        </Text>
-                      </View>
-                      <View style={styles.outputPriceDivider} />
-                      <View style={styles.outputPriceLine}>
-                        <Text style={styles.outputPriceLabel}>PERCEPCIÓN</Text>
-                        <Text style={styles.outputPriceNumber}>
-                          {value.percepcion.toFixed(4)}
-                        </Text>
-                      </View>
-                      <View style={styles.outputPriceDivider} />
-                      <View style={styles.outputPriceLine}>
-                        <Text style={styles.outputPriceLabel}>CON P.</Text>
-                        <Text style={styles.outputPriceNumber}>
-                          {value.conPercepcion.toFixed(4)}
-                        </Text>
-                      </View>
+                    <View style={styles.outputPriceLine}>
+                      <Text style={styles.outputPriceLabel}>CON P.</Text>
+                      <Text style={styles.outputPriceNumber}>
+                        {value.conPercepcion.toFixed(4)}
+                      </Text>
                     </View>
                   ) : null}
                 </TouchableOpacity>
@@ -819,20 +788,14 @@ const styles = StyleSheet.create({
   previewTitle: { flex: 1, color: "#111", fontSize: 20, fontWeight: "800" },
   previewDate: { width: 180, color: "#111", fontSize: 20, textAlign: "center" },
   previewLogo: { width: 120, height: 78 },
-  priceLegend: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 14, paddingRight: 4 },
-  priceLegendText: { color: "#333", fontSize: 12 },
-  priceLegendCode: { fontWeight: "700" },
-  priceLegendDivider: { width: 1, height: 14, backgroundColor: "#c7c7c7" },
   outputPlantCell: { width: 140 },
   outputRow: { flexDirection: "row" },
   outputHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#222", paddingVertical: 12, paddingHorizontal: 8, textAlign: "center", fontSize: 12, fontWeight: "800" },
-  outputCell: { minHeight: 104, borderWidth: 0.5, borderColor: "#222", paddingVertical: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  outputCell: { minHeight: 54, borderWidth: 0.5, borderColor: "#222", paddingVertical: 8, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
   outputPlant: { backgroundColor: "#bbb7b7" },
   outputValue: { backgroundColor: "#fff" },
   outputPlantText: { color: "#111", textAlign: "center", fontSize: 14 },
-  outputPricePair: { width: "100%" },
-  outputPriceLine: { minHeight: 27, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 },
-  outputPriceDivider: { height: 1, backgroundColor: "#d6d6d6" },
+  outputPriceLine: { width: "100%", minHeight: 27, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 },
   outputPriceLabel: { color: "#303030", fontSize: 10, fontWeight: "600" },
   outputPriceNumber: { color: "#111", fontSize: 14, fontWeight: "400", fontVariant: ["tabular-nums"] },
   noteEditor: { minHeight: 44, borderRadius: 8, backgroundColor: "#171717", color: "#fff", borderWidth: 1, borderColor: "#4a4a4a", paddingHorizontal: 12, fontWeight: "700" },
