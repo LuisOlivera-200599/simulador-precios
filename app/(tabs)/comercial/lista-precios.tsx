@@ -344,6 +344,7 @@ export default function ListaPrecios() {
             plantas={plantas}
             productos={productos}
             values={compras}
+            calculator
             onChange={(key, value) => updateCell(setCompras, key, value)}
           />
 
@@ -591,6 +592,49 @@ function ColorPalette({
   );
 }
 
+function PerceptionCalculator() {
+  const [amount, setAmount] = useState("");
+  const normalized = amount.trim().replace(",", ".");
+  const parsed = Number(normalized);
+  const valid = /^(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)
+    && Number.isFinite(parsed) && parsed >= 0;
+  const result = valid ? (parsed / (1 + TASA_PERCEPCION)).toFixed(4) : "—";
+
+  return (
+    <View style={styles.calculator}>
+      <View style={styles.calculatorIntro}>
+        <View style={styles.calculatorTitleRow}>
+          <Ionicons name="calculator-outline" size={20} color="#65dcb4" />
+          <Text style={styles.calculatorTitle}>CALCULADORA SIN PERCEPCIÓN</Text>
+        </View>
+        <Text style={styles.calculatorHint}>Con percepción ÷ 1.01</Text>
+      </View>
+      <View style={styles.calculatorField}>
+        <Text style={styles.structureLabel}>MONTO CON PERCEPCIÓN</Text>
+        <TextInput
+          accessibilityLabel="Monto con percepción"
+          keyboardType="decimal-pad"
+          value={amount}
+          onChangeText={setAmount}
+          placeholder="Ej. 10.1000"
+          placeholderTextColor="#8e9992"
+          style={styles.calculatorInput}
+        />
+        {normalized !== "" && !valid ? (
+          <Text style={styles.calculatorError}>Ingresa un monto válido, mayor o igual a cero.</Text>
+        ) : null}
+      </View>
+      <View style={styles.calculatorField}>
+        <Text style={styles.structureLabel}>MONTO SIN PERCEPCIÓN</Text>
+        <Text selectable accessibilityLiveRegion="polite" style={styles.calculatorResult}>
+          {result}
+        </Text>
+        <Text style={styles.calculatorHint}>Usa este resultado en la tabla de compra.</Text>
+      </View>
+    </View>
+  );
+}
+
 function PriceEditor({
   title,
   subtitle,
@@ -598,6 +642,7 @@ function PriceEditor({
   productos,
   values,
   onChange,
+  calculator = false,
 }: {
   title: string;
   subtitle: string;
@@ -605,11 +650,13 @@ function PriceEditor({
   productos: string[];
   values: Matriz;
   onChange: (key: string, value: string) => void;
+  calculator?: boolean;
 }) {
   return (
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>{title}</Text>
       <Text style={styles.helper}>{subtitle}</Text>
+      {calculator ? <PerceptionCalculator /> : null}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator
@@ -736,7 +783,16 @@ function PriceTable({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f1110" },
-  scroll: { padding: 18, paddingBottom: 110 },
+  scroll: { padding: 18, paddingBottom: 32 },
+  calculator: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: 16, padding: 16, marginBottom: 16, backgroundColor: "#142820", borderWidth: 1, borderColor: "#2e6350", borderRadius: 12 },
+  calculatorIntro: { flexGrow: 1, flexBasis: 240, gap: 8 },
+  calculatorTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  calculatorTitle: { flexShrink: 1, color: "#a5efd5", fontSize: 12, fontWeight: "800" },
+  calculatorField: { flexGrow: 1, flexBasis: 220, gap: 7 },
+  calculatorInput: { minHeight: 44, borderRadius: 8, backgroundColor: "#101b16", color: "#fff", borderWidth: 1, borderColor: "#52806c", paddingHorizontal: 12, fontSize: 17 },
+  calculatorResult: { minHeight: 44, color: "#81efc7", fontSize: 26, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  calculatorHint: { color: "#afc5ba", fontSize: 12, lineHeight: 18 },
+  calculatorError: { color: "#ffb4b4", fontSize: 12 },
   pageContent: { width: "100%", maxWidth: 1500, alignSelf: "center", gap: 16 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   eyebrow: { color: "#1D9E75", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
