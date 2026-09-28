@@ -101,12 +101,20 @@ export default function NumerosCuenta() {
                 </View>
                 <View style={styles.companyDetails}>
                   <View style={styles.companyRow}>
-                    <Text style={styles.companyLabel}>RAZÓN SOCIAL:</Text>
-                    <Text style={styles.companyValue}>{COMPANY_NAME}</Text>
+                    <View style={styles.companyLabelCell}>
+                      <Text style={styles.companyLabelText}>RAZÓN SOCIAL:</Text>
+                    </View>
+                    <View style={styles.companyValueCell}>
+                      <Text style={styles.companyValueText}>{COMPANY_NAME}</Text>
+                    </View>
                   </View>
                   <View style={styles.companyRow}>
-                    <Text style={styles.companyLabel}>RUC:</Text>
-                    <Text style={styles.companyValue}>{COMPANY_RUC}</Text>
+                    <View style={styles.companyLabelCell}>
+                      <Text style={styles.companyLabelText}>RUC:</Text>
+                    </View>
+                    <View style={styles.companyValueCell}>
+                      <Text style={styles.companyValueText}>{COMPANY_RUC}</Text>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -176,8 +184,10 @@ const styles = StyleSheet.create({
   cardLogo: { width: 132, height: 104 },
   companyDetails: { flex: 1, justifyContent: "center" },
   companyRow: { flexDirection: "row", minHeight: 52 },
-  companyLabel: { width: 154, backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#111", paddingHorizontal: 12, textAlign: "center", textAlignVertical: "center", fontSize: 15, fontWeight: "800" },
-  companyValue: { flex: 1, color: "#111", borderWidth: 0.5, borderColor: "#111", paddingHorizontal: 12, textAlign: "center", textAlignVertical: "center", fontSize: 17 },
+  companyLabelCell: { width: 154, backgroundColor: "#050505", borderWidth: 0.5, borderColor: "#111", paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  companyLabelText: { color: "#fff", textAlign: "center", fontSize: 15, fontWeight: "800" },
+  companyValueCell: { flex: 1, borderWidth: 0.5, borderColor: "#111", paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  companyValueText: { color: "#111", textAlign: "center", fontSize: 17 },
   bankTable: { borderWidth: 0.5, borderColor: "#111" },
   tableRow: { flexDirection: "row" },
   tableHeader: { backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#111", paddingVertical: 11, paddingHorizontal: 8, textAlign: "center", fontSize: 15, fontWeight: "800" },
