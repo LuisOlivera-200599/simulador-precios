@@ -14,6 +14,8 @@ import {
   View,
 } from "react-native";
 
+import { CommercialNavigation } from "../../../components/commercial-navigation";
+
 type Matriz = Record<string, string>;
 type PreciosVenta = {
   conPercepcion: number;
@@ -322,6 +324,8 @@ export default function ListaPrecios() {
               resizeMode="contain"
             />
           </View>
+
+          <CommercialNavigation active="prices" />
 
           <TableStructureManager
             nuevaPlanta={nuevaPlanta}
