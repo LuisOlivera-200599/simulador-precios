@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   cardLogo: { width: 132, height: 104 },
   companyDetails: { flex: 1, justifyContent: "center" },
   companyRow: { flexDirection: "row", minHeight: 52 },
-  companyLabel: { width: 154, backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#111", paddingHorizontal: 12, textAlignVertical: "center", fontSize: 15, fontWeight: "800" },
+  companyLabel: { width: 154, backgroundColor: "#050505", color: "#fff", borderWidth: 0.5, borderColor: "#111", paddingHorizontal: 12, textAlign: "center", textAlignVertical: "center", fontSize: 15, fontWeight: "800" },
   companyValue: { flex: 1, color: "#111", borderWidth: 0.5, borderColor: "#111", paddingHorizontal: 12, textAlign: "center", textAlignVertical: "center", fontSize: 17 },
   bankTable: { borderWidth: 0.5, borderColor: "#111" },
   tableRow: { flexDirection: "row" },
