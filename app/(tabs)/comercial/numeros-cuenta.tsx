@@ -22,8 +22,8 @@ const BANKS = [
   {
     bank: "BBVA",
     accounts: [
-      { type: "CTA CTE", number: "0011-0716-01-000451414" },
-      { type: "CCI", number: "011-716-0001000451414-81" },
+      { type: "CTA CTE", number: "0011-0716-01-00045144" },
+      { type: "CCI", number: "011-716-000100045144-81" },
     ],
   },
   {
