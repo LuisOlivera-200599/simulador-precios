@@ -36,6 +36,7 @@ const PALETA_COLORES = [
   { nombre: "Naranja", valor: "#FFB74D" },
   { nombre: "Rosado", valor: "#F48FB1" },
   { nombre: "Lila", valor: "#B39DDB" },
+  { nombre: "Rojo brillante", valor: "#FF0000" },
 ] as const;
 
 const keyFor = (planta: string, producto: string) => `${planta}::${producto}`;
